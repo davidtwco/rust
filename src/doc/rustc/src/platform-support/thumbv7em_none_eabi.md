@@ -1,1 +1,1 @@
-./thumbv7m_none_eabi.md
+thumbv7m_none_eabi.md
