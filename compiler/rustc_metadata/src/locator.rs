@@ -240,7 +240,8 @@ use std::path::{Path, PathBuf};
 use std::{cmp, fmt};
 
 #[derive(Clone)]
-pub(crate) struct CrateLocator<'a> {
+// FIXME(davidtwco): no pub
+pub struct CrateLocator<'a> {
     // Immutable per-session configuration.
     only_needs_metadata: bool,
     sysroot: &'a Path,
@@ -261,8 +262,8 @@ pub(crate) struct CrateLocator<'a> {
     crate_rejections: CrateRejections,
 }
 
-#[derive(Clone)]
-pub(crate) struct CratePaths {
+#[derive(Clone, Debug)]
+pub struct CratePaths {
     name: Symbol,
     source: CrateSource,
 }
@@ -273,8 +274,8 @@ impl CratePaths {
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
-pub(crate) enum CrateFlavor {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum CrateFlavor {
     Rlib,
     Rmeta,
     Dylib,
@@ -301,7 +302,7 @@ impl IntoDiagArg for CrateFlavor {
 }
 
 impl<'a> CrateLocator<'a> {
-    pub(crate) fn new(
+    pub fn new(
         sess: &'a Session,
         metadata_loader: &'a dyn MetadataLoader,
         crate_name: Symbol,
@@ -535,7 +536,8 @@ impl<'a> CrateLocator<'a> {
     // errors are emitted).
     //
     // The `PathBuf` in `slot` will only be used for diagnostic purposes.
-    fn extract_one(
+    // FIXME(davidtwco): no pub
+    pub fn extract_one(
         &mut self,
         m: FxHashMap<PathBuf, PathKind>,
         flavor: CrateFlavor,
@@ -673,6 +675,7 @@ impl<'a> CrateLocator<'a> {
             return None;
         }
 
+        debug!("header_name={:?}, crate_name={:?}", header.name, self.crate_name);
         if self.exact_paths.is_empty() && self.crate_name != header.name {
             info!("Rejecting via crate name");
             return None;
@@ -899,13 +902,13 @@ fn get_flavor_from_path(path: &Path) -> CrateFlavor {
 
 // ------------------------------------------ Error reporting -------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct CrateMismatch {
     path: PathBuf,
     got: String,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 struct CrateRejections {
     via_hash: Vec<CrateMismatch>,
     via_triple: Vec<CrateMismatch>,
@@ -918,7 +921,8 @@ struct CrateRejections {
 /// Candidate rejection reasons collected during crate search.
 /// If no candidate is accepted, then these reasons are presented to the user,
 /// otherwise they are ignored.
-pub(crate) struct CombinedLocatorError {
+#[derive(Debug)]
+pub struct CombinedLocatorError {
     crate_name: Symbol,
     root: Option<CratePaths>,
     triple: TargetTriple,
@@ -927,7 +931,8 @@ pub(crate) struct CombinedLocatorError {
     crate_rejections: CrateRejections,
 }
 
-pub(crate) enum CrateError {
+#[derive(Debug)]
+pub enum CrateError {
     NonAsciiName(Symbol),
     ExternLocationNotExist(Symbol, PathBuf),
     ExternLocationNotFile(Symbol, PathBuf),

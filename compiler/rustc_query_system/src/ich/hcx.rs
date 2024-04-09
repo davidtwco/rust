@@ -21,6 +21,8 @@ pub struct StableHashingContext<'a> {
     // The value of `-Z incremental-ignore-spans`.
     // This field should only be used by `unstable_opts_incremental_ignore_span`
     incremental_ignore_spans: bool,
+    /// `-Zcodegen-only`
+    codegen_only: bool,
     // Very often, we are hashing something that does not need the
     // `CachingSourceMapView`, so we initialize it lazily.
     raw_source_map: &'a SourceMap,
@@ -38,6 +40,7 @@ impl<'a> StableHashingContext<'a> {
             incremental_ignore_spans: sess.opts.unstable_opts.incremental_ignore_spans,
             caching_source_map: None,
             raw_source_map: sess.source_map(),
+            codegen_only: sess.opts.unstable_opts.codegen_only,
             hashing_controls: HashingControls { hash_spans: hash_spans_initial },
         }
     }
@@ -52,7 +55,9 @@ impl<'a> StableHashingContext<'a> {
 
     #[inline]
     pub fn def_path_hash(&self, def_id: DefId) -> DefPathHash {
-        if let Some(def_id) = def_id.as_local() {
+        if self.codegen_only {
+            self.untracked.cstore.read().def_path_hash(def_id)
+        } else if let Some(def_id) = def_id.as_local() {
             self.local_def_path_hash(def_id)
         } else {
             self.untracked.cstore.read().def_path_hash(def_id)

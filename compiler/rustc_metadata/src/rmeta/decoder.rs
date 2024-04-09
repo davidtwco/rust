@@ -43,7 +43,7 @@ mod cstore_impl;
 /// A `MetadataBlob` internally is just a reference counted pointer to
 /// the actual data, so cloning it is cheap.
 #[derive(Clone)]
-pub(crate) struct MetadataBlob(pub(crate) OwnedSlice);
+pub struct MetadataBlob(pub(crate) OwnedSlice);
 
 impl std::ops::Deref for MetadataBlob {
     type Target = [u8];
@@ -60,9 +60,11 @@ impl std::ops::Deref for MetadataBlob {
 /// own crate numbers.
 pub(crate) type CrateNumMap = IndexVec<CrateNum, CrateNum>;
 
-pub(crate) struct CrateMetadata {
+// FIXME(davidtwco) pub
+pub struct CrateMetadata {
     /// The primary crate data - binary metadata blob.
-    blob: MetadataBlob,
+    // FIXME(davidtwco) pub
+    pub blob: MetadataBlob,
 
     // --- Some data pre-decoded from the metadata blob, usually for performance ---
     /// Data about the top-level items in a crate, as well as various crate-level metadata.
@@ -121,6 +123,14 @@ pub(crate) struct CrateMetadata {
     /// Information about the `extern crate` item or path that caused this crate to be loaded.
     /// If this is `None`, then the crate was injected (e.g., by the allocator).
     extern_crate: Option<ExternCrate>,
+}
+
+use std::fmt;
+
+impl fmt::Debug for CrateMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.cnum)
+    }
 }
 
 /// Holds information about a rustc_span::SourceFile imported from another crate.

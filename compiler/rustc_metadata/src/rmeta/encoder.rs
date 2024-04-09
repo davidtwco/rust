@@ -2179,12 +2179,17 @@ fn prefetch_mir(tcx: TyCtxt<'_>) {
 // will allow us to slice the metadata to the precise length that we just
 // generated regardless of trailing bytes that end up in it.
 
-pub struct EncodedMetadata {
-    // The declaration order matters because `mmap` should be dropped before `_temp_dir`.
-    mmap: Option<Mmap>,
-    // We need to carry MaybeTempDir to avoid deleting the temporary
-    // directory while accessing the Mmap.
-    _temp_dir: Option<MaybeTempDir>,
+pub enum EncodedMetadata {
+    /// Metadata which was loaded from a previous no-codegen compilation.
+    Loaded(MetadataBlob),
+    /// Metadata that has been encoded from the current compilation session.
+    New {
+        // The declaration order matters because `mmap` should be dropped before `_temp_dir`.
+        mmap: Option<Mmap>,
+        // We need to carry MaybeTempDir to avoid deleting the temporary
+        // directory while accessing the Mmap.
+        _temp_dir: Option<MaybeTempDir>,
+    },
 }
 
 impl EncodedMetadata {
@@ -2193,15 +2198,18 @@ impl EncodedMetadata {
         let file = std::fs::File::open(&path)?;
         let file_metadata = file.metadata()?;
         if file_metadata.len() == 0 {
-            return Ok(Self { mmap: None, _temp_dir: None });
+            return Ok(EncodedMetadata::New { mmap: None, _temp_dir: None });
         }
         let mmap = unsafe { Some(Mmap::map(file)?) };
-        Ok(Self { mmap, _temp_dir: temp_dir })
+        Ok(EncodedMetadata::New { mmap, _temp_dir: temp_dir })
     }
 
     #[inline]
     pub fn raw_data(&self) -> &[u8] {
-        self.mmap.as_deref().unwrap_or_default()
+        match self {
+            EncodedMetadata::Loaded(blob) => blob,
+            EncodedMetadata::New { mmap, .. } => mmap.as_deref().unwrap_or_default(),
+        }
     }
 }
 
@@ -2226,7 +2234,7 @@ impl<D: Decoder> Decodable<D> for EncodedMetadata {
             None
         };
 
-        Self { mmap, _temp_dir: None }
+        EncodedMetadata::New { mmap, _temp_dir: None }
     }
 }
 

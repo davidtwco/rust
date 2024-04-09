@@ -1056,7 +1056,9 @@ impl<'tcx> TyCtxt<'tcx> {
     pub fn def_key(self, id: impl IntoQueryParam<DefId>) -> rustc_hir::definitions::DefKey {
         let id = id.into_query_param();
         // Accessing the DefKey is ok, since it is part of DefPathHash.
-        if let Some(id) = id.as_local() {
+        if self.sess.opts.unstable_opts.codegen_only {
+            self.cstore_untracked().def_key(id)
+        } else if let Some(id) = id.as_local() {
             self.definitions_untracked().def_key(id)
         } else {
             self.cstore_untracked().def_key(id)
@@ -1070,7 +1072,9 @@ impl<'tcx> TyCtxt<'tcx> {
     ///  be a non-local `DefPath`.
     pub fn def_path(self, id: DefId) -> rustc_hir::definitions::DefPath {
         // Accessing the DefPath is ok, since it is part of DefPathHash.
-        if let Some(id) = id.as_local() {
+        if self.sess.opts.unstable_opts.codegen_only {
+            self.cstore_untracked().def_path(id)
+        } else if let Some(id) = id.as_local() {
             self.definitions_untracked().def_path(id)
         } else {
             self.cstore_untracked().def_path(id)
@@ -1080,7 +1084,9 @@ impl<'tcx> TyCtxt<'tcx> {
     #[inline]
     pub fn def_path_hash(self, def_id: DefId) -> rustc_hir::definitions::DefPathHash {
         // Accessing the DefPathHash is ok, it is incr. comp. stable.
-        if let Some(def_id) = def_id.as_local() {
+        if self.sess.opts.unstable_opts.codegen_only {
+            self.cstore_untracked().def_path_hash(def_id)
+        } else if let Some(def_id) = def_id.as_local() {
             self.definitions_untracked().def_path_hash(def_id)
         } else {
             self.cstore_untracked().def_path_hash(def_id)

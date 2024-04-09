@@ -115,19 +115,26 @@ impl<'tcx> Queries<'tcx> {
         self.gcx.compute(|| {
             let sess = &self.compiler.sess;
 
-            let mut krate = self.parse()?.steal();
+            let krate = if sess.opts.unstable_opts.codegen_only {
+                None
+            } else {
+                let mut krate = self.parse()?.steal();
 
-            rustc_builtin_macros::cmdline_attrs::inject(
-                &mut krate,
-                &sess.psess,
-                &sess.opts.unstable_opts.crate_attr,
-            );
+                rustc_builtin_macros::cmdline_attrs::inject(
+                    &mut krate,
+                    &sess.psess,
+                    &sess.opts.unstable_opts.crate_attr,
+                );
 
-            let pre_configured_attrs =
-                rustc_expand::config::pre_configure_attrs(sess, &krate.attrs);
+                Some(krate)
+            };
+
+            let attrs = krate.as_ref().map(|k| k.attrs.as_ref()).unwrap_or(&[]);
+            let pre_configured_attrs = rustc_expand::config::pre_configure_attrs(sess, &attrs);
 
             // parse `#[crate_name]` even if `--crate-name` was passed, to make sure it matches.
             let crate_name = find_crate_name(sess, &pre_configured_attrs);
+            debug!(?crate_name);
             let crate_types = collect_crate_types(sess, &pre_configured_attrs);
             let stable_crate_id = StableCrateId::new(
                 crate_name,
@@ -158,6 +165,58 @@ impl<'tcx> Queries<'tcx> {
             );
 
             qcx.enter(|tcx| {
+                // do this before feeding so that there is a meta for the loaded rlib in place
+                if sess.opts.unstable_opts.codegen_only {
+                    use rustc_data_structures::fx::{FxHashMap, FxHashSet};
+                    use rustc_metadata::creader::{CrateLoader, Library};
+                    use rustc_metadata::locator::{CrateFlavor, CrateLocator};
+                    use rustc_session::config::Input;
+                    use rustc_session::cstore::{CrateDepKind, CrateSource};
+                    use rustc_session::search_paths::PathKind;
+
+                    let loader = self.compiler.codegen_backend.metadata_loader();
+                    let mut locator = CrateLocator::new(
+                        sess,
+                        &*loader,
+                        crate_name,
+                        true,
+                        None,
+                        None,
+                        true,
+                        PathKind::Crate,
+                    );
+                    let library = if let Input::File(file) = &sess.io.input {
+                        let mut paths = FxHashMap::default();
+                        paths.insert(file.clone(), PathKind::Crate);
+                        let mut slot = None;
+                        let source = CrateSource {
+                            rlib: locator
+                                .extract_one(paths, CrateFlavor::Rlib, &mut slot)
+                                .expect("crate error"),
+                            rmeta: Default::default(),
+                            dylib: Default::default(),
+                        };
+                        slot.map(|(_, metadata, _)| Library { source, metadata }).expect("no load")
+                    } else {
+                        panic!("input is not a file")
+                    };
+
+                    let mut used_extern_options = FxHashSet::default();
+                    let mut cstore = CStore::from_tcx_mut(tcx);
+                    let mut loader = CrateLoader::new(tcx, &mut cstore, &mut used_extern_options);
+                    loader
+                        .register_crate(
+                            /* host_lib */ None,
+                            /* root */ None,
+                            library,
+                            CrateDepKind::Implicit,
+                            // feeded by `global_ctxt` so guaranteed to be okay
+                            crate_name,
+                            /* private_dep */ None,
+                        )
+                        .expect("register crate");
+                }
+
                 let feed = tcx.feed_local_crate();
                 feed.crate_name(crate_name);
 
@@ -167,7 +226,11 @@ impl<'tcx> Queries<'tcx> {
                     &pre_configured_attrs,
                     crate_name,
                 )));
-                feed.crate_for_resolver(tcx.arena.alloc(Steal::new((krate, pre_configured_attrs))));
+                if let Some(krate) = krate {
+                    feed.crate_for_resolver(
+                        tcx.arena.alloc(Steal::new((krate, pre_configured_attrs))),
+                    );
+                }
                 feed.output_filenames(Arc::new(outputs));
             });
             Ok(qcx)

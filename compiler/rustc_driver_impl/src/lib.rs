@@ -386,80 +386,111 @@ fn run_compiler(
             return early_exit();
         }
 
-        let linker = compiler.enter(|queries| {
-            let early_exit = || early_exit().map(|_| None);
-            queries.parse()?;
+        let linker = if sess.opts.unstable_opts.codegen_only {
+            debug!("codegen only");
+            compiler.enter(|queries| {
+                debug!("pre-enter");
+                queries.global_ctxt()?.enter(|_| {
+                    debug!("in-enter");
+                });
 
-            if let Some(ppm) = &sess.opts.pretty {
-                if ppm.needs_ast_map() {
-                    queries.global_ctxt()?.enter(|tcx| {
-                        tcx.ensure().early_lint_checks(());
-                        pretty::print(sess, *ppm, pretty::PrintExtra::NeedsAstMap { tcx });
-                        Ok(())
-                    })?;
+                debug!("pre-codegen");
+                // deduplicate following with below
+                let linker = queries.codegen_and_build_linker()?;
 
-                    queries.write_dep_info()?;
-                } else {
-                    let krate = queries.parse()?;
-                    pretty::print(
-                        sess,
-                        *ppm,
-                        pretty::PrintExtra::AfterParsing { krate: &*krate.borrow() },
-                    );
+                // This must run after monomorphization so that all generic types
+                // have been instantiated.
+                if sess.opts.unstable_opts.print_type_sizes {
+                    sess.code_stats.print_type_sizes();
                 }
-                trace!("finished pretty-printing");
-                return early_exit();
-            }
 
-            if callbacks.after_crate_root_parsing(compiler, queries) == Compilation::Stop {
-                return early_exit();
-            }
+                if sess.opts.unstable_opts.print_vtable_sizes {
+                    let crate_name =
+                        queries.global_ctxt()?.enter(|tcx| tcx.crate_name(LOCAL_CRATE));
 
-            if sess.opts.unstable_opts.parse_only || sess.opts.unstable_opts.show_span.is_some() {
-                return early_exit();
-            }
+                    sess.code_stats.print_vtable_sizes(crate_name);
+                }
 
-            // Make sure name resolution and macro expansion is run.
-            queries.global_ctxt()?.enter(|tcx| tcx.resolver_for_lowering());
+                Ok(Some(linker))
+            })?
+        } else {
+            compiler.enter(|queries| {
+                let early_exit = || early_exit().map(|_| None);
+                queries.parse()?;
 
-            if callbacks.after_expansion(compiler, queries) == Compilation::Stop {
-                return early_exit();
-            }
+                if let Some(ppm) = &sess.opts.pretty {
+                    if ppm.needs_ast_map() {
+                        queries.global_ctxt()?.enter(|tcx| {
+                            tcx.ensure().early_lint_checks(());
+                            pretty::print(sess, *ppm, pretty::PrintExtra::NeedsAstMap { tcx });
+                            Ok(())
+                        })?;
 
-            queries.write_dep_info()?;
+                        queries.write_dep_info()?;
+                    } else {
+                        let krate = queries.parse()?;
+                        pretty::print(
+                            sess,
+                            *ppm,
+                            pretty::PrintExtra::AfterParsing { krate: &*krate.borrow() },
+                        );
+                    }
+                    trace!("finished pretty-printing");
+                    return early_exit();
+                }
 
-            if sess.opts.output_types.contains_key(&OutputType::DepInfo)
-                && sess.opts.output_types.len() == 1
-            {
-                return early_exit();
-            }
+                if callbacks.after_crate_root_parsing(compiler, queries) == Compilation::Stop {
+                    return early_exit();
+                }
 
-            if sess.opts.unstable_opts.no_analysis {
-                return early_exit();
-            }
+                if sess.opts.unstable_opts.parse_only || sess.opts.unstable_opts.show_span.is_some()
+                {
+                    return early_exit();
+                }
 
-            queries.global_ctxt()?.enter(|tcx| tcx.analysis(()))?;
+                // Make sure name resolution and macro expansion is run.
+                queries.global_ctxt()?.enter(|tcx| tcx.resolver_for_lowering());
 
-            if callbacks.after_analysis(compiler, queries) == Compilation::Stop {
-                return early_exit();
-            }
+                if callbacks.after_expansion(compiler, queries) == Compilation::Stop {
+                    return early_exit();
+                }
 
-            let linker = queries.codegen_and_build_linker()?;
+                queries.write_dep_info()?;
 
-            // This must run after monomorphization so that all generic types
-            // have been instantiated.
-            if sess.opts.unstable_opts.print_type_sizes {
-                sess.code_stats.print_type_sizes();
-            }
+                if sess.opts.output_types.contains_key(&OutputType::DepInfo)
+                    && sess.opts.output_types.len() == 1
+                {
+                    return early_exit();
+                }
 
-            if sess.opts.unstable_opts.print_vtable_sizes {
-                let crate_name = queries.global_ctxt()?.enter(|tcx| tcx.crate_name(LOCAL_CRATE));
+                if sess.opts.unstable_opts.no_analysis {
+                    return early_exit();
+                }
 
-                sess.code_stats.print_vtable_sizes(crate_name);
-            }
+                queries.global_ctxt()?.enter(|tcx| tcx.analysis(()))?;
 
-            Ok(Some(linker))
-        })?;
+                if callbacks.after_analysis(compiler, queries) == Compilation::Stop {
+                    return early_exit();
+                }
+
+                let linker = queries.codegen_and_build_linker()?;
+
+                // This must run after monomorphization so that all generic types
+                // have been instantiated.
+                if sess.opts.unstable_opts.print_type_sizes {
+                    sess.code_stats.print_type_sizes();
+                }
+
+                if sess.opts.unstable_opts.print_vtable_sizes {
+                    let crate_name =
+                        queries.global_ctxt()?.enter(|tcx| tcx.crate_name(LOCAL_CRATE));
+
+                    sess.code_stats.print_vtable_sizes(crate_name);
+                }
+
+                Ok(Some(linker))
+            })?
+        };
 
         // Linking is done outside the `compiler.enter()` so that the
         // `GlobalCtxt` within `Queries` can be freed as early as possible.

@@ -102,7 +102,7 @@ pub enum LoadedMacro {
     ProcMacro(SyntaxExtension),
 }
 
-pub(crate) struct Library {
+pub struct Library {
     pub source: CrateSource,
     pub metadata: MetadataBlob,
 }
@@ -114,7 +114,8 @@ enum LoadResult {
 
 /// A reference to `CrateMetadata` that can also give access to whole crate store when necessary.
 #[derive(Clone, Copy)]
-pub(crate) struct CrateMetadataRef<'a> {
+// FIXME(davidtwco) fix pub
+pub struct CrateMetadataRef<'a> {
     pub cdata: &'a CrateMetadata,
     pub cstore: &'a CStore,
 }
@@ -165,19 +166,29 @@ impl CStore {
         })
     }
 
-    fn intern_stable_crate_id(&mut self, root: &CrateRoot) -> Result<CrateNum, CrateError> {
+    fn intern_stable_crate_id(
+        &mut self,
+        is_codegen_only: bool,
+        root: &CrateRoot,
+    ) -> Result<CrateNum, CrateError> {
         assert_eq!(self.metas.len(), self.stable_crate_ids.len());
         let num = CrateNum::new(self.stable_crate_ids.len());
         if let Some(&existing) = self.stable_crate_ids.get(&root.stable_crate_id()) {
             // Check for (potential) conflicts with the local crate
             if existing == LOCAL_CRATE {
-                Err(CrateError::SymbolConflictsCurrent(root.name()))
+                if is_codegen_only {
+                    // don't need to add to metas or anything like that, local_crate exists there
+                    // from CStore::new
+                    Ok(existing)
+                } else {
+                    return Err(CrateError::SymbolConflictsCurrent(root.name()));
+                }
             } else if let Some(crate_name1) = self.metas[existing].as_ref().map(|data| data.name())
             {
                 let crate_name0 = root.name();
-                Err(CrateError::StableCrateIdCollision(crate_name0, crate_name1))
+                return Err(CrateError::StableCrateIdCollision(crate_name0, crate_name1));
             } else {
-                Err(CrateError::NotFound(root.name()))
+                return Err(CrateError::NotFound(root.name()));
             }
         } else {
             self.metas.push(None);
@@ -203,6 +214,7 @@ impl CStore {
 
     fn set_crate_data(&mut self, cnum: CrateNum, data: CrateMetadata) {
         assert!(self.metas[cnum].is_none(), "Overwriting crate metadata entry");
+        debug!(?cnum, ?data);
         self.metas[cnum] = Some(Box::new(data));
     }
 
@@ -398,7 +410,8 @@ impl<'a, 'tcx> CrateLoader<'a, 'tcx> {
             && private_dep.unwrap_or(true)
     }
 
-    fn register_crate(
+    // FIXME(davidtwco): not pub
+    pub fn register_crate(
         &mut self,
         host_lib: Option<Library>,
         root: Option<&CratePaths>,
@@ -416,7 +429,8 @@ impl<'a, 'tcx> CrateLoader<'a, 'tcx> {
         let private_dep = self.is_private_dep(name.as_str(), private_dep);
 
         // Claim this crate number and cache it
-        let cnum = self.cstore.intern_stable_crate_id(&crate_root)?;
+        let is_codegen_only = self.sess.opts.unstable_opts.codegen_only;
+        let cnum = self.cstore.intern_stable_crate_id(is_codegen_only, &crate_root)?;
 
         info!(
             "register crate `{}` (cnum = {}. private_dep = {})",

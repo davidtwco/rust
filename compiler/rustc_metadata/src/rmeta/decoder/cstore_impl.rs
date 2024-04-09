@@ -123,7 +123,7 @@ macro_rules! provide_one {
 
             #[allow(unused_variables)]
             let ($def_id, $other) = def_id_arg.into_args();
-            assert!(!$def_id.is_local());
+            assert!(!$def_id.is_local() || $tcx.sess.opts.unstable_opts.codegen_only);
 
             // External query providers call `crate_hash` in order to register a dependency
             // on the crate metadata. The exception is `crate_hash` itself, which obviously
