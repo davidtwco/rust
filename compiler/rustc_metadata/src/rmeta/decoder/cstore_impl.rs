@@ -262,6 +262,7 @@ provide! { tcx, def_id, other, cdata,
             .unwrap_or_else(|| panic!("{def_id:?} does not have eval_static_initializer")))
     }
     trait_def => { table }
+    limits => { cdata.get_limits() }
     deduced_param_attrs => { table }
     is_type_alias_impl_trait => {
         debug_assert_eq!(tcx.def_kind(def_id), DefKind::OpaqueTy);

@@ -1470,15 +1470,15 @@ impl<'tcx> TyCtxt<'tcx> {
     }
 
     pub fn type_length_limit(self) -> Limit {
-        self.limits(()).type_length_limit
+        self.limits(LOCAL_CRATE).type_length_limit
     }
 
     pub fn recursion_limit(self) -> Limit {
-        self.limits(()).recursion_limit
+        self.limits(LOCAL_CRATE).recursion_limit
     }
 
     pub fn move_size_limit(self) -> Limit {
-        self.limits(()).move_size_limit
+        self.limits(LOCAL_CRATE).move_size_limit
     }
 
     pub fn all_traits(self) -> impl Iterator<Item = DefId> + 'tcx {

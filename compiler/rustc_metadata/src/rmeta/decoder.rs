@@ -24,7 +24,7 @@ use rustc_middle::ty::Visibility;
 use rustc_serialize::opaque::MemDecoder;
 use rustc_serialize::{Decodable, Decoder};
 use rustc_session::cstore::{CrateSource, ExternCrate};
-use rustc_session::Session;
+use rustc_session::{Limit, Limits, Session};
 use rustc_span::symbol::kw;
 use rustc_span::{BytePos, Pos, SpanData, SpanDecoder, SyntaxContext, DUMMY_SP};
 
@@ -1477,6 +1477,14 @@ impl<'a, 'tcx> CrateMetadataRef<'a> {
 
     fn get_missing_lang_items(self, tcx: TyCtxt<'tcx>) -> &'tcx [LangItem] {
         tcx.arena.alloc_from_iter(self.root.lang_items_missing.decode(self))
+    }
+
+    fn get_limits(self) -> Limits {
+        Limits {
+            recursion_limit: Limit::new(self.root.recursion_limit),
+            move_size_limit: Limit::new(self.root.move_size_limit),
+            type_length_limit: Limit::new(self.root.type_length_limit),
+        }
     }
 
     fn exported_symbols(

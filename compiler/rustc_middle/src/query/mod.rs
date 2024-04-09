@@ -2160,8 +2160,9 @@ rustc_queries! {
         desc { "revealing opaque types in `{:?}`", key }
     }
 
-    query limits(key: ()) -> Limits {
+    query limits(key: CrateNum) -> Limits {
         desc { "looking up limits" }
+        separate_provide_extern
     }
 
     /// Performs an HIR-based well-formed check on the item with the given `HirId`. If

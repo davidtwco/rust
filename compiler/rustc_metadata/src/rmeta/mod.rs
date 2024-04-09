@@ -292,6 +292,10 @@ pub(crate) struct CrateRoot {
     panic_runtime: bool,
     profiler_runtime: bool,
     symbol_mangling_version: SymbolManglingVersion,
+
+    recursion_limit: usize,
+    move_size_limit: usize,
+    type_length_limit: usize,
 }
 
 /// On-disk representation of `DefId`.

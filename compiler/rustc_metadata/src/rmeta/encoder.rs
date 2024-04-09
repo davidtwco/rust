@@ -718,6 +718,10 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
                 profiler_runtime: attr::contains_name(attrs, sym::profiler_runtime),
                 symbol_mangling_version: tcx.sess.opts.get_symbol_mangling_version(),
 
+                recursion_limit: tcx.recursion_limit().0,
+                move_size_limit: tcx.move_size_limit().0,
+                type_length_limit: tcx.type_length_limit().0,
+
                 crate_deps,
                 dylib_dependency_formats,
                 lib_features,

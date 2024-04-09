@@ -18,7 +18,7 @@ use rustc_span::symbol::{sym, Symbol};
 use std::num::IntErrorKind;
 
 pub fn provide(providers: &mut Providers) {
-    providers.limits = |tcx, ()| Limits {
+    providers.limits = |tcx, _| Limits {
         recursion_limit: get_recursion_limit(tcx.hir().krate_attrs(), tcx.sess),
         move_size_limit: get_limit(
             tcx.hir().krate_attrs(),
