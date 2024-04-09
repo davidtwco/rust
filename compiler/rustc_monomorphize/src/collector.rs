@@ -451,14 +451,19 @@ fn collect_items_rec<'tcx>(
                 )
             });
         }
-        MonoItem::GlobalAsm(item_id) => {
+        MonoItem::GlobalAsm(def_id) => {
             assert!(
                 mode == CollectionMode::UsedItems,
                 "should never encounter global_asm when collecting mentioned items"
             );
             recursion_depth_reset = None;
 
-            let item = tcx.hir().item(item_id);
+            // FIXME(davidtwco) this won't work in mironly
+            let item = def_id
+                .as_local()
+                .map(|id| tcx.expect_hir_owner_node(id))
+                .map(|n| n.expect_item())
+                .expect("global asm mono item");
             if let hir::ItemKind::GlobalAsm(asm) = item.kind {
                 for (op, op_sp) in asm.operands {
                     match op {
@@ -1572,7 +1577,7 @@ impl<'v> RootCollector<'_, 'v> {
                     "RootCollector: ItemKind::GlobalAsm({})",
                     self.tcx.def_path_str(id.owner_id)
                 );
-                self.output.push(dummy_spanned(MonoItem::GlobalAsm(id)));
+                self.output.push(dummy_spanned(MonoItem::GlobalAsm(id.owner_id.to_def_id())));
             }
             DefKind::Static { .. } => {
                 let def_id = id.owner_id.to_def_id();

@@ -33,8 +33,12 @@ impl<'a, 'tcx: 'a> MonoItemExt<'a, 'tcx> for MonoItem<'tcx> {
             MonoItem::Static(def_id) => {
                 cx.codegen_static(def_id);
             }
-            MonoItem::GlobalAsm(item_id) => {
-                let item = cx.tcx().hir().item(item_id);
+            MonoItem::GlobalAsm(def_id) => {
+                let item = def_id
+                    .as_local()
+                    .map(|id| cx.tcx().expect_hir_owner_node(id))
+                    .map(|n| n.expect_item())
+                    .expect("global asm mono item");
                 if let hir::ItemKind::GlobalAsm(asm) = item.kind {
                     let operands: Vec<_> = asm
                         .operands

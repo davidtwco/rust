@@ -7,7 +7,6 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_data_structures::stable_hasher::{Hash128, HashStable, StableHasher};
 use rustc_hir::def_id::{CrateNum, DefId, LOCAL_CRATE};
-use rustc_hir::ItemId;
 use rustc_index::Idx;
 use rustc_query_system::ich::StableHashingContext;
 use rustc_session::config::OptLevel;
@@ -45,7 +44,7 @@ pub enum InstantiationMode {
 pub enum MonoItem<'tcx> {
     Fn(Instance<'tcx>),
     Static(DefId),
-    GlobalAsm(ItemId),
+    GlobalAsm(DefId),
 }
 
 impl<'tcx> MonoItem<'tcx> {
@@ -93,7 +92,7 @@ impl<'tcx> MonoItem<'tcx> {
             MonoItem::Fn(instance) => tcx.symbol_name(instance),
             MonoItem::Static(def_id) => tcx.symbol_name(Instance::mono(tcx, def_id)),
             MonoItem::GlobalAsm(item_id) => {
-                SymbolName::new(tcx, &format!("global_asm_{:?}", item_id.owner_id))
+                SymbolName::new(tcx, &format!("global_asm_{:?}", item_id))
             }
         }
     }
@@ -193,8 +192,7 @@ impl<'tcx> MonoItem<'tcx> {
     pub fn local_span(&self, tcx: TyCtxt<'tcx>) -> Option<Span> {
         match *self {
             MonoItem::Fn(Instance { def, .. }) => def.def_id().as_local(),
-            MonoItem::Static(def_id) => def_id.as_local(),
-            MonoItem::GlobalAsm(item_id) => Some(item_id.owner_id.def_id),
+            MonoItem::Static(def_id) | MonoItem::GlobalAsm(def_id) => def_id.as_local(),
         }
         .map(|def_id| tcx.def_span(def_id))
     }
@@ -217,8 +215,7 @@ impl<'tcx> MonoItem<'tcx> {
     pub fn def_id(&self) -> DefId {
         match *self {
             MonoItem::Fn(Instance { def, .. }) => def.def_id(),
-            MonoItem::Static(def_id) => def_id,
-            MonoItem::GlobalAsm(item_id) => item_id.owner_id.to_def_id(),
+            MonoItem::Static(def_id) | MonoItem::GlobalAsm(def_id) => def_id,
         }
     }
 }
@@ -409,8 +406,9 @@ impl<'tcx> CodegenUnit<'tcx> {
                             | InstanceDef::FnPtrAddrShim(..) => None,
                         }
                     }
-                    MonoItem::Static(def_id) => def_id.as_local().map(Idx::index),
-                    MonoItem::GlobalAsm(item_id) => Some(item_id.owner_id.def_id.index()),
+                    MonoItem::Static(def_id) | MonoItem::GlobalAsm(def_id) => {
+                        def_id.as_local().map(Idx::index)
+                    }
                 },
                 item.symbol_name(tcx),
             )
