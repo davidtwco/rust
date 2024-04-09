@@ -205,18 +205,19 @@
 //! this is not implemented however: a mono item will be produced
 //! regardless of whether it is actually needed or not.
 
+use hir::def_id::LOCAL_CRATE;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
 use rustc_data_structures::sync::{par_for_each_in, LRef, MTLock};
 use rustc_hir as hir;
 use rustc_hir::def::DefKind;
-use rustc_hir::def_id::{DefId, DefIdMap, LocalDefId};
+use rustc_hir::def_id::{DefId, DefIdMap};
 use rustc_hir::lang_items::LangItem;
 use rustc_middle::middle::codegen_fn_attrs::CodegenFnAttrFlags;
 use rustc_middle::mir::interpret::{AllocId, ErrorHandled, GlobalAlloc, Scalar};
-use rustc_middle::mir::mono::{InstantiationMode, MonoItem};
+use rustc_middle::mir::mono::{InstantiationMode, MonoCollectionRoots, MonoItem};
 use rustc_middle::mir::visit::Visitor as MirVisitor;
 use rustc_middle::mir::{self, Location, MentionedItem};
-use rustc_middle::query::TyCtxtAt;
+use rustc_middle::query::{Providers, TyCtxtAt};
 use rustc_middle::ty::adjustment::{CustomCoerceUnsized, PointerCoercion};
 use rustc_middle::ty::layout::ValidityRequirement;
 use rustc_middle::ty::print::with_no_trimmed_paths;
@@ -1528,14 +1529,14 @@ fn collect_roots(tcx: TyCtxt<'_>, mode: MonoItemCollectionStrategy) -> Vec<MonoI
 
         let mut collector = RootCollector { tcx, strategy: mode, entry_fn, output: &mut roots };
 
-        let crate_items = tcx.hir_crate_items(());
+        let roots = tcx.mono_collection_roots(LOCAL_CRATE);
 
-        for id in crate_items.free_items() {
-            collector.process_item(id);
+        for id in roots.free_items {
+            collector.process_item(*id);
         }
 
-        for id in crate_items.impl_items() {
-            collector.process_impl_item(id);
+        for id in roots.impl_items {
+            collector.process_impl_item(*id);
         }
 
         collector.push_extra_entry_roots();
@@ -1560,36 +1561,33 @@ struct RootCollector<'a, 'tcx> {
 }
 
 impl<'v> RootCollector<'_, 'v> {
-    fn process_item(&mut self, id: hir::ItemId) {
-        match self.tcx.def_kind(id.owner_id) {
+    fn process_item(&mut self, id: DefId) {
+        debug!(?id);
+        match self.tcx.def_kind(id) {
             DefKind::Enum | DefKind::Struct | DefKind::Union => {
                 if self.strategy == MonoItemCollectionStrategy::Eager
-                    && self.tcx.generics_of(id.owner_id).count() == 0
+                    && self.tcx.generics_of(id).count() == 0
                 {
                     debug!("RootCollector: ADT drop-glue for `{id:?}`",);
 
-                    let ty = self.tcx.type_of(id.owner_id.to_def_id()).no_bound_vars().unwrap();
+                    let ty = self.tcx.type_of(id).no_bound_vars().unwrap();
                     visit_drop_use(self.tcx, ty, true, DUMMY_SP, self.output);
                 }
             }
             DefKind::GlobalAsm => {
-                debug!(
-                    "RootCollector: ItemKind::GlobalAsm({})",
-                    self.tcx.def_path_str(id.owner_id)
-                );
-                self.output.push(dummy_spanned(MonoItem::GlobalAsm(id.owner_id.to_def_id())));
+                debug!("RootCollector: ItemKind::GlobalAsm({})", self.tcx.def_path_str(id));
+                self.output.push(dummy_spanned(MonoItem::GlobalAsm(id)));
             }
             DefKind::Static { .. } => {
-                let def_id = id.owner_id.to_def_id();
-                debug!("RootCollector: ItemKind::Static({})", self.tcx.def_path_str(def_id));
-                self.output.push(dummy_spanned(MonoItem::Static(def_id)));
+                debug!("RootCollector: ItemKind::Static({})", self.tcx.def_path_str(id));
+                self.output.push(dummy_spanned(MonoItem::Static(id)));
             }
             DefKind::Const => {
                 // const items only generate mono items if they are
                 // actually used somewhere. Just declaring them is insufficient.
 
                 // but even just declaring them must collect the items they refer to
-                if let Ok(val) = self.tcx.const_eval_poly(id.owner_id.to_def_id()) {
+                if let Ok(val) = self.tcx.const_eval_poly(id) {
                     collect_const_value(self.tcx, val, self.output);
                 }
             }
@@ -1599,24 +1597,24 @@ impl<'v> RootCollector<'_, 'v> {
                 }
             }
             DefKind::Fn => {
-                self.push_if_root(id.owner_id.def_id);
+                self.push_if_root(id);
             }
             _ => {}
         }
     }
 
-    fn process_impl_item(&mut self, id: hir::ImplItemId) {
-        if matches!(self.tcx.def_kind(id.owner_id), DefKind::AssocFn) {
-            self.push_if_root(id.owner_id.def_id);
+    fn process_impl_item(&mut self, id: DefId) {
+        if matches!(self.tcx.def_kind(id), DefKind::AssocFn) {
+            self.push_if_root(id);
         }
     }
 
-    fn is_root(&self, def_id: LocalDefId) -> bool {
+    fn is_root(&self, def_id: DefId) -> bool {
         !self.tcx.generics_of(def_id).requires_monomorphization(self.tcx)
             && match self.strategy {
                 MonoItemCollectionStrategy::Eager => true,
                 MonoItemCollectionStrategy::Lazy => {
-                    self.entry_fn.and_then(|(id, _)| id.as_local()) == Some(def_id)
+                    self.entry_fn.map(|(id, _)| id) == Some(def_id)
                         || self.tcx.is_reachable_non_generic(def_id)
                         || self
                             .tcx
@@ -1630,11 +1628,11 @@ impl<'v> RootCollector<'_, 'v> {
     /// If `def_id` represents a root, pushes it onto the list of
     /// outputs. (Note that all roots must be monomorphic.)
     #[instrument(skip(self), level = "debug")]
-    fn push_if_root(&mut self, def_id: LocalDefId) {
+    fn push_if_root(&mut self, def_id: DefId) {
         if self.is_root(def_id) {
             debug!("found root");
 
-            let instance = Instance::mono(self.tcx, def_id.to_def_id());
+            let instance = Instance::mono(self.tcx, def_id);
             self.output.push(create_fn_mono_item(self.tcx, instance, DUMMY_SP));
         }
     }
@@ -1678,10 +1676,10 @@ impl<'v> RootCollector<'_, 'v> {
 #[instrument(level = "debug", skip(tcx, output))]
 fn create_mono_items_for_default_impls<'tcx>(
     tcx: TyCtxt<'tcx>,
-    item: hir::ItemId,
+    item: DefId,
     output: &mut MonoItems<'tcx>,
 ) {
-    let Some(impl_) = tcx.impl_trait_header(item.owner_id) else {
+    let Some(impl_) = tcx.impl_trait_header(item) else {
         return;
     };
 
@@ -1689,7 +1687,7 @@ fn create_mono_items_for_default_impls<'tcx>(
         return;
     }
 
-    if tcx.generics_of(item.owner_id).own_requires_monomorphization() {
+    if tcx.generics_of(item).own_requires_monomorphization() {
         return;
     }
 
@@ -1708,7 +1706,7 @@ fn create_mono_items_for_default_impls<'tcx>(
             )
         }
     };
-    let impl_args = GenericArgs::for_item(tcx, item.owner_id.to_def_id(), only_region_params);
+    let impl_args = GenericArgs::for_item(tcx, item, only_region_params);
     let trait_ref = impl_.trait_ref.instantiate(tcx, impl_args);
 
     // Unlike 'lazy' monomorphization that begins by collecting items transitively
@@ -1720,13 +1718,13 @@ fn create_mono_items_for_default_impls<'tcx>(
     // consider higher-ranked predicates such as `for<'a> &'a mut [u8]: Copy` to
     // be trivially false. We must now check that the impl has no impossible-to-satisfy
     // predicates.
-    if tcx.instantiate_and_check_impossible_predicates((item.owner_id.to_def_id(), impl_args)) {
+    if tcx.instantiate_and_check_impossible_predicates((item, impl_args)) {
         return;
     }
 
     let param_env = ty::ParamEnv::reveal_all();
     let trait_ref = tcx.normalize_erasing_regions(param_env, trait_ref);
-    let overridden_methods = tcx.impl_item_implementor_ids(item.owner_id);
+    let overridden_methods = tcx.impl_item_implementor_ids(item);
     for method in tcx.provided_trait_methods(trait_ref.def_id) {
         if overridden_methods.contains_key(&method.def_id) {
             continue;
@@ -1791,4 +1789,18 @@ pub fn collect_crate_mono_items(
     }
 
     (state.visited.into_inner(), state.usage_map.into_inner())
+}
+
+pub fn provide(providers: &mut Providers) {
+    providers.mono_collection_roots = |tcx, _| {
+        let crate_items = tcx.hir_crate_items(());
+        MonoCollectionRoots {
+            free_items: tcx
+                .arena
+                .alloc_from_iter(crate_items.free_items().map(|id| id.owner_id.to_def_id())),
+            impl_items: tcx
+                .arena
+                .alloc_from_iter(crate_items.impl_items().map(|id| id.owner_id.to_def_id())),
+        }
+    };
 }

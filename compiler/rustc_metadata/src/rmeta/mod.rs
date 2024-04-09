@@ -205,6 +205,12 @@ pub(crate) struct ProcMacroData {
     macros: LazyArray<DefIndex>,
 }
 
+#[derive(MetadataEncodable, MetadataDecodable)]
+pub(crate) struct MonoCollectionRoots {
+    free_items: LazyArray<DefIndex>,
+    impl_items: LazyArray<DefIndex>,
+}
+
 /// Serialized crate metadata.
 ///
 /// This contains just enough information to determine if we should load the `CrateRoot` or not.
@@ -271,6 +277,7 @@ pub(crate) struct CrateRoot {
     incoherent_impls: LazyArray<IncoherentImpls>,
     interpret_alloc_index: LazyArray<u64>,
     proc_macro_data: Option<ProcMacroData>,
+    mono_collection_roots: MonoCollectionRoots,
 
     tables: LazyTables,
     debugger_visualizers: LazyArray<DebuggerVisualizerFile>,

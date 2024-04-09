@@ -232,6 +232,12 @@ impl<'tcx> fmt::Display for MonoItem<'tcx> {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Debug, HashStable)]
+pub struct MonoCollectionRoots<'tcx> {
+    pub free_items: &'tcx [DefId],
+    pub impl_items: &'tcx [DefId],
+}
+
 #[derive(Debug)]
 pub struct CodegenUnit<'tcx> {
     /// A name for this CGU. Incremental compilation requires that

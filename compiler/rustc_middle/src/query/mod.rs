@@ -24,7 +24,7 @@ use crate::mir::interpret::{
     EvalToValTreeResult,
 };
 use crate::mir::interpret::{LitToConstError, LitToConstInput};
-use crate::mir::mono::CodegenUnit;
+use crate::mir::mono::{CodegenUnit, MonoCollectionRoots};
 use crate::query::erase::{erase, restore, Erase};
 use crate::query::plumbing::{
     query_ensure, query_ensure_error_guaranteed, query_get_at, CyclePlaceholder, DynamicQuery,
@@ -1898,6 +1898,11 @@ rustc_queries! {
     query exported_symbols(cnum: CrateNum) -> &'tcx [(ExportedSymbol<'tcx>, SymbolExportInfo)] {
         desc { "collecting exported symbols for crate `{}`", cnum}
         cache_on_disk_if { *cnum == LOCAL_CRATE }
+        separate_provide_extern
+    }
+
+    query mono_collection_roots(_: CrateNum) -> MonoCollectionRoots<'tcx> {
+        desc { "compute root items for monomorphisation collection" }
         separate_provide_extern
     }
 

@@ -666,6 +666,9 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
         // encode_def_path_table.
         let proc_macro_data = stat!("proc-macro-data", || self.encode_proc_macros());
 
+        let mono_collection_roots =
+            stat!("mono-collection-roots", || self.encode_mono_collection_roots());
+
         let tables = stat!("tables", || self.tables.encode(&mut self.opaque));
 
         let debugger_visualizers =
@@ -743,6 +746,7 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
                 expn_data,
                 expn_hashes,
                 def_path_hash_map,
+                mono_collection_roots,
             })
         });
 
@@ -2116,6 +2120,15 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
             }));
         }
         LazyArray::default()
+    }
+
+    fn encode_mono_collection_roots(&mut self) -> MonoCollectionRoots {
+        let roots = self.tcx.mono_collection_roots(LOCAL_CRATE);
+        debug!(?roots);
+        MonoCollectionRoots {
+            free_items: self.lazy_array(roots.free_items.iter().map(|i| i.index)),
+            impl_items: self.lazy_array(roots.impl_items.iter().map(|i| i.index)),
+        }
     }
 }
 

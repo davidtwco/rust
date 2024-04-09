@@ -19,6 +19,7 @@ use rustc_hir::diagnostic_items::DiagnosticItems;
 use rustc_index::Idx;
 use rustc_middle::middle::lib_features::LibFeatures;
 use rustc_middle::mir::interpret::{AllocDecodingSession, AllocDecodingState};
+use rustc_middle::mir::mono;
 use rustc_middle::ty::codec::TyDecoder;
 use rustc_middle::ty::Visibility;
 use rustc_serialize::opaque::MemDecoder;
@@ -1477,6 +1478,18 @@ impl<'a, 'tcx> CrateMetadataRef<'a> {
 
     fn get_missing_lang_items(self, tcx: TyCtxt<'tcx>) -> &'tcx [LangItem] {
         tcx.arena.alloc_from_iter(self.root.lang_items_missing.decode(self))
+    }
+
+    fn get_mono_collection_roots(self, tcx: TyCtxt<'tcx>) -> mono::MonoCollectionRoots<'tcx> {
+        let roots = &self.root.mono_collection_roots;
+        mono::MonoCollectionRoots {
+            free_items: tcx.arena.alloc_from_iter(
+                roots.free_items.decode(self).map(move |idx| self.local_def_id(idx)),
+            ),
+            impl_items: tcx.arena.alloc_from_iter(
+                roots.impl_items.decode(self).map(move |idx| self.local_def_id(idx)),
+            ),
+        }
     }
 
     fn get_limits(self) -> Limits {

@@ -80,6 +80,7 @@ pub fn is_call_from_compiler_builtins_to_upstream_monomorphization<'tcx>(
 }
 
 pub fn provide(providers: &mut Providers) {
+    collector::provide(providers);
     partitioning::provide(providers);
     polymorphize::provide(providers);
 }
