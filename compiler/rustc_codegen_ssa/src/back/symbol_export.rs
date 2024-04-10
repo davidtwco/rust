@@ -139,7 +139,7 @@ fn reachable_non_generics_provider(tcx: TyCtxt<'_>, _: LocalCrate) -> DefIdMap<S
         })
         .into();
 
-    if let Some(id) = tcx.proc_macro_decls_static(()) {
+    if let Some(id) = tcx.proc_macro_decls_static(LOCAL_CRATE) {
         reachable_non_generics.insert(
             id.to_def_id(),
             SymbolExportInfo {

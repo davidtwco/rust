@@ -704,7 +704,7 @@ fn analysis(tcx: TyCtxt<'_>, (): ()) -> Result<()> {
                 sess.time("looking_for_entry_point", || tcx.ensure().entry_fn(()));
 
                 sess.time("looking_for_derive_registrar", || {
-                    tcx.ensure().proc_macro_decls_static(())
+                    tcx.ensure().proc_macro_decls_static(LOCAL_CRATE)
                 });
 
                 CStore::from_tcx(tcx).report_unused_deps(tcx);

@@ -1811,7 +1811,8 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
             let tcx = self.tcx;
             let hir = tcx.hir();
 
-            let proc_macro_decls_static = tcx.proc_macro_decls_static(()).unwrap().local_def_index;
+            let proc_macro_decls_static =
+                tcx.proc_macro_decls_static(LOCAL_CRATE).unwrap().local_def_index;
             let stability = tcx.lookup_stability(CRATE_DEF_ID);
             let macros =
                 self.lazy_array(tcx.resolutions(()).proc_macros.iter().map(|p| p.local_def_index));

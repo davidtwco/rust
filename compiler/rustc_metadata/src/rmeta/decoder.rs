@@ -4,6 +4,7 @@ use crate::creader::CStore;
 use crate::rmeta::table::IsDefault;
 use crate::rmeta::*;
 
+use hir::def_id::LocalDefId;
 use rustc_ast as ast;
 use rustc_data_structures::captures::Captures;
 use rustc_data_structures::fingerprint::Fingerprint;
@@ -1488,6 +1489,13 @@ impl<'a, 'tcx> CrateMetadataRef<'a> {
 
     fn get_missing_lang_items(self, tcx: TyCtxt<'tcx>) -> &'tcx [LangItem] {
         tcx.arena.alloc_from_iter(self.root.lang_items_missing.decode(self))
+    }
+
+    fn get_proc_macro_decls_static(self) -> Option<LocalDefId> {
+        self.root
+            .proc_macro_data
+            .as_ref()
+            .and_then(|d| self.local_def_id(d.proc_macro_decls_static).as_local())
     }
 
     fn get_mono_collection_roots(self, tcx: TyCtxt<'tcx>) -> mono::MonoCollectionRoots<'tcx> {

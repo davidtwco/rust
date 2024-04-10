@@ -1,10 +1,10 @@
 use rustc_ast::attr;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::query::Providers;
+use rustc_middle::query::{LocalCrate, Providers};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::symbol::sym;
 
-fn proc_macro_decls_static(tcx: TyCtxt<'_>, (): ()) -> Option<LocalDefId> {
+fn proc_macro_decls_static(tcx: TyCtxt<'_>, _: LocalCrate) -> Option<LocalDefId> {
     let mut decls = None;
 
     for id in tcx.hir().items() {

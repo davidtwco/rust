@@ -1616,8 +1616,9 @@ rustc_queries! {
     }
 
     /// Finds the `rustc_proc_macro_decls` item of a crate.
-    query proc_macro_decls_static(_: ()) -> Option<LocalDefId> {
+    query proc_macro_decls_static(_: CrateNum) -> Option<LocalDefId> {
         desc { "looking up the proc macro declarations for a crate" }
+        separate_provide_extern
     }
 
     // The macro which defines `rustc_metadata::provide_extern` depends on this query's name.
