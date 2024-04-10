@@ -398,6 +398,11 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
 
     /// Try to see if this path can be trimmed to a unique symbol name.
     fn try_print_trimmed_def_path(&mut self, def_id: DefId) -> Result<bool, PrintError> {
+        if self.tcx().sess.opts.unstable_opts.codegen_only {
+            // `trimmed_def_paths` uses `tcx.resolutions()` which isn't available in
+            // `-Zcodegen-only`, so never print trimmed def paths.
+            return Ok(false);
+        }
         if with_forced_trimmed_paths() && self.force_print_trimmed_def_path(def_id)? {
             return Ok(true);
         }
