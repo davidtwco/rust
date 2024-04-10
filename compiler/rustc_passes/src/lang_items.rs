@@ -15,7 +15,7 @@ use crate::weak_lang_items;
 use rustc_ast as ast;
 use rustc_ast::visit;
 use rustc_data_structures::fx::FxHashMap;
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::{DefId, LocalDefId, LOCAL_CRATE};
 use rustc_hir::lang_items::{extract, GenericRequirement};
 use rustc_hir::{LangItem, LanguageItems, MethodKind, Target};
 use rustc_middle::ty::{ResolverAstLowering, TyCtxt};
@@ -31,37 +31,27 @@ pub(crate) enum Duplicate {
     CrateDepends,
 }
 
-struct LanguageItemCollector<'ast, 'tcx> {
+struct LanguageItemCollector<'tcx> {
     items: LanguageItems,
     tcx: TyCtxt<'tcx>,
-    resolver: &'ast ResolverAstLowering,
     // FIXME(#118552): We should probably feed def_span eagerly on def-id creation
     // so we can avoid constructing this map for local def-ids.
     item_spans: FxHashMap<DefId, Span>,
-    parent_item: Option<&'ast ast::Item>,
 }
 
-impl<'ast, 'tcx> LanguageItemCollector<'ast, 'tcx> {
-    fn new(
-        tcx: TyCtxt<'tcx>,
-        resolver: &'ast ResolverAstLowering,
-    ) -> LanguageItemCollector<'ast, 'tcx> {
-        LanguageItemCollector {
-            tcx,
-            resolver,
-            items: LanguageItems::new(),
-            item_spans: FxHashMap::default(),
-            parent_item: None,
-        }
+impl<'tcx> LanguageItemCollector<'tcx> {
+    fn new(tcx: TyCtxt<'tcx>) -> LanguageItemCollector<'tcx> {
+        LanguageItemCollector { tcx, items: LanguageItems::new(), item_spans: FxHashMap::default() }
     }
 
-    fn check_for_lang(
+    fn check_for_lang<'ast>(
         &mut self,
         actual_target: Target,
         def_id: LocalDefId,
         attrs: &'ast [ast::Attribute],
         item_span: Span,
         generics: Option<&'ast ast::Generics>,
+        parent_item: &mut Option<&'ast ast::Item>,
     ) {
         if let Some((name, attr_span)) = extract(attrs) {
             match LangItem::from_name(name) {
@@ -74,6 +64,7 @@ impl<'ast, 'tcx> LanguageItemCollector<'ast, 'tcx> {
                         attr_span,
                         generics,
                         actual_target,
+                        parent_item,
                     );
                 }
                 // Known lang item with attribute on incorrect target.
@@ -177,7 +168,7 @@ impl<'ast, 'tcx> LanguageItemCollector<'ast, 'tcx> {
 
     // Like collect_item() above, but also checks whether the lang item is declared
     // with the right number of generic arguments.
-    fn collect_item_extended(
+    fn collect_item_extended<'ast>(
         &mut self,
         lang_item: LangItem,
         item_def_id: LocalDefId,
@@ -185,6 +176,7 @@ impl<'ast, 'tcx> LanguageItemCollector<'ast, 'tcx> {
         attr_span: Span,
         generics: Option<&'ast ast::Generics>,
         target: Target,
+        parent_item: &mut Option<&'ast ast::Item>,
     ) {
         let name = lang_item.name();
 
@@ -200,11 +192,8 @@ impl<'ast, 'tcx> LanguageItemCollector<'ast, 'tcx> {
             // FIXME: This still doesn't count, e.g., elided lifetimes and APITs.
             let mut actual_num = generics.params.len();
             if target.is_associated_item() {
-                actual_num += self
-                    .parent_item
-                    .unwrap()
-                    .opt_generics()
-                    .map_or(0, |generics| generics.params.len());
+                actual_num +=
+                    parent_item.unwrap().opt_generics().map_or(0, |generics| generics.params.len());
             }
 
             let mut at_least = false;
@@ -243,30 +232,52 @@ impl<'ast, 'tcx> LanguageItemCollector<'ast, 'tcx> {
 
 /// Traverses and collects all the lang items in all crates.
 fn get_lang_items(tcx: TyCtxt<'_>, (): ()) -> LanguageItems {
-    let resolver = tcx.resolver_for_lowering().borrow();
-    let (resolver, krate) = &*resolver;
-
+    debug!("get_lang_items");
     // Initialize the collector.
-    let mut collector = LanguageItemCollector::new(tcx, resolver);
+    let mut collector = LanguageItemCollector::new(tcx);
 
     // Collect lang items in other crates.
+    debug!("other crates");
     for &cnum in tcx.used_crates(()).iter() {
+        debug!(?cnum);
         for &(def_id, lang_item) in tcx.defined_lang_items(cnum).iter() {
+            debug!(?cnum, ?def_id, ?lang_item);
             collector.collect_item(lang_item, def_id, None);
         }
     }
 
     // Collect lang items local to this crate.
-    visit::Visitor::visit_crate(&mut collector, krate);
+    if tcx.sess.opts.unstable_opts.codegen_only {
+        debug!("codegen only");
+        for &(def_id, lang_item) in tcx.defined_lang_items(LOCAL_CRATE).iter() {
+            debug!(?LOCAL_CRATE, ?def_id, ?lang_item);
+            collector.collect_item(lang_item, def_id, None);
+        }
+    } else {
+        let resolver = tcx.resolver_for_lowering().borrow();
+        let (resolver, krate) = &*resolver;
 
-    // Find all required but not-yet-defined lang items.
-    weak_lang_items::check_crate(tcx, &mut collector.items, krate);
+        let mut visitor =
+            LanguageItemVisitor { collector: &mut collector, resolver, parent_item: None };
+        visit::Visitor::visit_crate(&mut visitor, krate);
+
+        // Find all required but not-yet-defined lang items.
+        // FIXME(davidtwco): this should happen regardless of codegen-only but we don't
+        // have the AST, and presumably it has happened in the compilation of the rlib
+        weak_lang_items::check_crate(tcx, &mut collector.items, krate);
+    }
 
     // Return all the lang items that were found.
     collector.items
 }
 
-impl<'ast, 'tcx> visit::Visitor<'ast> for LanguageItemCollector<'ast, 'tcx> {
+struct LanguageItemVisitor<'a, 'ast, 'tcx> {
+    collector: &'a mut LanguageItemCollector<'tcx>,
+    resolver: &'ast ResolverAstLowering,
+    parent_item: Option<&'ast ast::Item>,
+}
+
+impl<'a, 'ast, 'tcx> visit::Visitor<'ast> for LanguageItemVisitor<'a, 'ast, 'tcx> {
     fn visit_item(&mut self, i: &'ast ast::Item) {
         let target = match &i.kind {
             ast::ItemKind::ExternCrate(_) => Target::ExternCrate,
@@ -288,12 +299,13 @@ impl<'ast, 'tcx> visit::Visitor<'ast> for LanguageItemCollector<'ast, 'tcx> {
             ast::ItemKind::MacCall(_) => unreachable!("macros should have been expanded"),
         };
 
-        self.check_for_lang(
+        self.collector.check_for_lang(
             target,
             self.resolver.node_id_to_def_id[&i.id],
             &i.attrs,
             i.span,
             i.opt_generics(),
+            &mut self.parent_item,
         );
 
         let parent_item = self.parent_item.replace(i);
@@ -303,12 +315,13 @@ impl<'ast, 'tcx> visit::Visitor<'ast> for LanguageItemCollector<'ast, 'tcx> {
 
     fn visit_enum_def(&mut self, enum_definition: &'ast ast::EnumDef) {
         for variant in &enum_definition.variants {
-            self.check_for_lang(
+            self.collector.check_for_lang(
                 Target::Variant,
                 self.resolver.node_id_to_def_id[&variant.id],
                 &variant.attrs,
                 variant.span,
                 None,
+                &mut self.parent_item,
             );
         }
 
@@ -343,12 +356,13 @@ impl<'ast, 'tcx> visit::Visitor<'ast> for LanguageItemCollector<'ast, 'tcx> {
             ast::AssocItemKind::MacCall(_) => unreachable!("macros should have been expanded"),
         };
 
-        self.check_for_lang(
+        self.collector.check_for_lang(
             target,
             self.resolver.node_id_to_def_id[&i.id],
             &i.attrs,
             i.span,
             generics,
+            &mut self.parent_item,
         );
 
         visit::walk_assoc_item(self, i, ctxt);
