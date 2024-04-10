@@ -215,6 +215,7 @@ impl<'tcx> Queries<'tcx> {
                             /* private_dep */ None,
                         )
                         .expect("register crate");
+                    cstore.set_used_recursively(LOCAL_CRATE);
                 }
 
                 let feed = tcx.feed_local_crate();
