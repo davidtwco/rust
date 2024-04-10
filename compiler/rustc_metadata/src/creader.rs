@@ -221,6 +221,7 @@ impl CStore {
     pub(crate) fn iter_crate_data(&self) -> impl Iterator<Item = (CrateNum, &CrateMetadata)> {
         self.metas
             .iter_enumerated()
+            .filter(|(cnum, _)| *cnum != LOCAL_CRATE)
             .filter_map(|(cnum, data)| data.as_deref().map(|data| (cnum, data)))
     }
 
