@@ -720,6 +720,7 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
                 panic_runtime: attr::contains_name(attrs, sym::panic_runtime),
                 profiler_runtime: attr::contains_name(attrs, sym::profiler_runtime),
                 symbol_mangling_version: tcx.sess.opts.get_symbol_mangling_version(),
+                windows_subsystem: tcx.windows_subsystem(LOCAL_CRATE),
 
                 recursion_limit: tcx.recursion_limit().0,
                 move_size_limit: tcx.move_size_limit().0,

@@ -1440,6 +1440,11 @@ rustc_queries! {
         desc { "getting the linkage format of all dependencies" }
     }
 
+    query windows_subsystem(_: CrateNum) -> Option<Symbol> {
+        fatal_cycle
+        desc { "getting the value of `#![windows_subsystem]`" }
+        separate_provide_extern
+    }
     query is_compiler_builtins(_: CrateNum) -> bool {
         fatal_cycle
         desc { "checking if the crate is_compiler_builtins" }

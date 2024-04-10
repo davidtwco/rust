@@ -35,7 +35,6 @@ use rustc_middle::ty::layout::{HasTyCtxt, LayoutOf, TyAndLayout};
 use rustc_middle::ty::{self, Instance, Ty, TyCtxt};
 use rustc_session::config::{self, CrateType, EntryFnType, OptLevel, OutputType};
 use rustc_session::Session;
-use rustc_span::symbol::sym;
 use rustc_span::Symbol;
 use rustc_target::abi::{Align, FIRST_VARIANT};
 
@@ -845,14 +844,7 @@ impl CrateInfo {
         let linked_symbols =
             crate_types.iter().map(|&c| (c, crate::back::linker::linked_symbols(tcx, c))).collect();
         let local_crate_name = tcx.crate_name(LOCAL_CRATE);
-        let crate_attrs = tcx.hir().attrs(rustc_hir::CRATE_HIR_ID);
-        let subsystem = attr::first_attr_value_str_by_name(crate_attrs, sym::windows_subsystem);
-        let windows_subsystem = subsystem.map(|subsystem| {
-            if subsystem != sym::windows && subsystem != sym::console {
-                tcx.dcx().emit_fatal(errors::InvalidWindowsSubsystem { subsystem });
-            }
-            subsystem.to_string()
-        });
+        let windows_subsystem = tcx.windows_subsystem(LOCAL_CRATE).map(|s| s.to_string());
 
         // This list is used when generating the command line to pass through to
         // system linker. The linker expects undefined symbols on the left of the

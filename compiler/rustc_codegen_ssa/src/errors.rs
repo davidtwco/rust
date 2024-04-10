@@ -590,12 +590,6 @@ pub struct MetadataObjectFileWrite {
 }
 
 #[derive(Diagnostic)]
-#[diag(codegen_ssa_invalid_windows_subsystem)]
-pub struct InvalidWindowsSubsystem {
-    pub subsystem: Symbol,
-}
-
-#[derive(Diagnostic)]
 #[diag(codegen_ssa_shuffle_indices_evaluation)]
 pub struct ShuffleIndicesEvaluation {
     #[primary_span]

@@ -147,5 +147,11 @@ pub struct ErroneousConstant {
     pub span: Span,
 }
 
+#[derive(Diagnostic)]
+#[diag(middle_invalid_windows_subsystem)]
+pub struct InvalidWindowsSubsystem {
+    pub subsystem: Symbol,
+}
+
 /// Used by `rustc_const_eval`
 pub use crate::fluent_generated::middle_adjust_for_foreign_abi_error;

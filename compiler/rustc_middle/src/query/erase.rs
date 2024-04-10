@@ -1,3 +1,5 @@
+use rustc_span::Symbol;
+
 use crate::mir;
 use crate::query::CyclePlaceholder;
 use crate::traits;
@@ -175,6 +177,10 @@ impl<T> EraseType for Option<&'_ T> {
 
 impl<T> EraseType for Option<&'_ [T]> {
     type Result = [u8; size_of::<Option<&'static [()]>>()];
+}
+
+impl EraseType for Option<Symbol> {
+    type Result = [u8; size_of::<Option<Symbol>>()];
 }
 
 impl EraseType for Option<mir::DestructuredConstant<'_>> {

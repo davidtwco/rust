@@ -56,6 +56,9 @@ middle_drop_check_overflow =
 
 middle_erroneous_constant = erroneous constant encountered
 
+middle_invalid_windows_subsystem =
+    invalid windows subsystem `{$subsystem}`, only `windows` and `console` are allowed
+
 middle_layout_references_error =
     the type has an unknown layout
 

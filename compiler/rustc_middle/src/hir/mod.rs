@@ -6,6 +6,7 @@ pub mod map;
 pub mod nested_filter;
 pub mod place;
 
+use crate::error;
 use crate::query::Providers;
 use crate::ty::{EarlyBinder, ImplSubject, TyCtxt};
 use rustc_ast::attr;
@@ -194,6 +195,17 @@ pub fn provide(providers: &mut Providers) {
     providers.is_compiler_builtins = |tcx, _| {
         let crate_attrs = tcx.hir().attrs(rustc_hir::CRATE_HIR_ID);
         attr::contains_name(crate_attrs, sym::compiler_builtins)
+    };
+    providers.windows_subsystem = |tcx, _| {
+        let crate_attrs = tcx.hir().attrs(rustc_hir::CRATE_HIR_ID);
+        let subsystem = attr::first_attr_value_str_by_name(crate_attrs, sym::windows_subsystem);
+        if let Some(subsystem) = subsystem
+            && subsystem != sym::windows
+            && subsystem != sym::console
+        {
+            tcx.dcx().emit_fatal(error::InvalidWindowsSubsystem { subsystem });
+        }
+        subsystem
     };
     providers.def_span = |tcx, def_id| tcx.hir().span(tcx.local_def_id_to_hir_id(def_id));
     providers.def_ident_span = |tcx, def_id| {

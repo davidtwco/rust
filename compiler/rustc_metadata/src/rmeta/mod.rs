@@ -299,6 +299,7 @@ pub(crate) struct CrateRoot {
     panic_runtime: bool,
     profiler_runtime: bool,
     symbol_mangling_version: SymbolManglingVersion,
+    windows_subsystem: Option<Symbol>,
 
     recursion_limit: usize,
     move_size_limit: usize,
