@@ -8,6 +8,7 @@ pub mod place;
 
 use crate::query::Providers;
 use crate::ty::{EarlyBinder, ImplSubject, TyCtxt};
+use rustc_ast::attr;
 use rustc_data_structures::fingerprint::Fingerprint;
 use rustc_data_structures::sorted_map::SortedMap;
 use rustc_data_structures::stable_hasher::{HashStable, StableHasher};
@@ -15,7 +16,7 @@ use rustc_data_structures::sync::{try_par_for_each_in, DynSend, DynSync};
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId, LocalModDefId};
 use rustc_hir::*;
-use rustc_span::{ErrorGuaranteed, ExpnId};
+use rustc_span::{sym, ErrorGuaranteed, ExpnId};
 
 /// Gather the LocalDefId for each item-like within a module, including items contained within
 /// bodies. The Ids are in visitor order. This is used to partition a pass between modules.
@@ -185,6 +186,14 @@ pub fn provide(providers: &mut Providers) {
     };
     providers.hir_attrs = |tcx, id| {
         tcx.hir_crate(()).owners[id.def_id].as_owner().map_or(AttributeMap::EMPTY, |o| &o.attrs)
+    };
+    providers.is_no_builtins = |tcx, _| {
+        let crate_attrs = tcx.hir().attrs(rustc_hir::CRATE_HIR_ID);
+        attr::contains_name(crate_attrs, sym::no_builtins)
+    };
+    providers.is_compiler_builtins = |tcx, _| {
+        let crate_attrs = tcx.hir().attrs(rustc_hir::CRATE_HIR_ID);
+        attr::contains_name(crate_attrs, sym::compiler_builtins)
     };
     providers.def_span = |tcx, def_id| tcx.hir().span(tcx.local_def_id_to_hir_id(def_id));
     providers.def_ident_span = |tcx, def_id| {

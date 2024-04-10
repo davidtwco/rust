@@ -8,7 +8,6 @@ use crate::{
     CachedModuleCodegen, CodegenResults, CompiledModule, CrateInfo, ModuleCodegen, ModuleKind,
 };
 use jobserver::{Acquired, Client};
-use rustc_ast::attr;
 use rustc_data_structures::fx::{FxHashMap, FxIndexMap};
 use rustc_data_structures::memmap::Mmap;
 use rustc_data_structures::profiling::{SelfProfilerRef, VerboseTimingGuard};
@@ -33,7 +32,6 @@ use rustc_session::config::{self, CrateType, Lto, OutFileName, OutputFilenames, 
 use rustc_session::config::{Passes, SwitchWithOptPath};
 use rustc_session::Session;
 use rustc_span::source_map::SourceMap;
-use rustc_span::symbol::sym;
 use rustc_span::{BytePos, FileName, InnerSpan, Pos, Span};
 use rustc_target::spec::{MergeFunctions, SanitizerSet};
 
@@ -466,9 +464,8 @@ pub fn start_async_codegen<B: ExtraBackendMethods>(
     let (coordinator_send, coordinator_receive) = channel();
     let sess = tcx.sess;
 
-    let crate_attrs = tcx.hir().attrs(rustc_hir::CRATE_HIR_ID);
-    let no_builtins = attr::contains_name(crate_attrs, sym::no_builtins);
-    let is_compiler_builtins = attr::contains_name(crate_attrs, sym::compiler_builtins);
+    let no_builtins = tcx.is_no_builtins(LOCAL_CRATE);
+    let is_compiler_builtins = tcx.is_compiler_builtins(LOCAL_CRATE);
 
     let crate_info = CrateInfo::new(tcx, target_cpu);
 
