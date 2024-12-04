@@ -1,7 +1,7 @@
 use rustc_abi::{AddressSpace, Float, Integer};
 use rustc_middle::bug;
+use rustc_middle::ty::Ty;
 use rustc_middle::ty::layout::{HasTyCtxt, HasTypingEnv, TyAndLayout};
-use rustc_middle::ty::{self, Ty};
 use rustc_target::callconv::{ArgAbi, CastTarget, FnAbi, Reg};
 
 use super::BackendTypes;
@@ -86,16 +86,7 @@ pub trait DerivedTypeCodegenMethods<'tcx>:
     }
 
     fn type_has_metadata(&self, ty: Ty<'tcx>) -> bool {
-        if ty.is_sized(self.tcx(), self.typing_env()) {
-            return false;
-        }
-
-        let tail = self.tcx().struct_tail_for_codegen(ty, self.typing_env());
-        match tail.kind() {
-            ty::Foreign(..) => false,
-            ty::Str | ty::Slice(..) | ty::Dynamic(..) => true,
-            _ => bug!("unexpected unsized tail: {:?}", tail),
-        }
+        self.tcx().type_has_metadata(ty, self.typing_env())
     }
 }
 
