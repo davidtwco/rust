@@ -14,8 +14,9 @@ use rustc_span::{RealFileName, SourceFileHashAlgorithm};
 use rustc_target::spec::{
     CodeModel, FramePointer, LinkerFlavorCli, MergeFunctions, OnBrokenPipe, PanicStrategy,
     RelocModel, RelroLevel, SanitizerSet, SplitDebuginfo, StackProtector, SymbolVisibility,
-    TargetTuple, TlsModel, WasmCAbi,
+    TargetSpecFlag, TargetTuple, TlsModel, WasmCAbi,
 };
+use tracing::debug;
 
 use crate::config::*;
 use crate::search_paths::SearchPath;
@@ -426,6 +427,8 @@ mod desc {
         "one of supported code models (`rustc --print code-models`)";
     pub(crate) const parse_tls_model: &str =
         "one of supported TLS models (`rustc --print tls-models`)";
+    pub(crate) const parse_target_spec: &str =
+        "a key-value pair identifying a value set in a target specification";
     pub(crate) const parse_target_feature: &str = parse_string;
     pub(crate) const parse_terminal_url: &str =
         "either a boolean (`yes`, `no`, `on`, `off`, etc), or `auto`";
@@ -1521,6 +1524,21 @@ pub mod parse {
 
         true
     }
+
+    pub(crate) fn parse_target_spec(slot: &mut Vec<TargetSpecFlag>, v: Option<&str>) -> bool {
+        debug!(?v);
+        match v {
+            Some(s) => {
+                if let Some(flag) = rustc_target::spec::parse_target_specification_flag(s) {
+                    slot.push(flag);
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
 }
 
 options! {
@@ -2073,6 +2091,8 @@ written to standard error output)"),
         "prefer dynamic linking to static linking for staticlibs (default: no)"),
     strict_init_checks: bool = (false, parse_bool, [TRACKED],
         "control if mem::uninitialized and mem::zeroed panic on more UB"),
+    target_spec: Vec<TargetSpecFlag> = (Vec::default(), parse_target_spec, [TRACKED],
+        "provide target specification incrementally (values are unstable and match target spec JSON)"),
     #[rustc_lint_opt_deny_field_access("use `Session::teach` instead of this field")]
     teach: bool = (false, parse_bool, [TRACKED],
         "show extended diagnostic help (default: no)"),

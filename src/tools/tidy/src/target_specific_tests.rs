@@ -34,7 +34,11 @@ pub fn check(tests_path: &Path, bad: &mut bool) {
                 let compile_flags = &directive[COMPILE_FLAGS_HEADER.len()..];
                 if let Some((_, v)) = compile_flags.split_once("--target") {
                     let v = v.trim_start_matches(|c| c == ' ' || c == '=');
-                    let v = if v == "{{target}}" { Some((v, v)) } else { v.split_once("-") };
+                    let v = if v == "{{target}}" || v.contains(".json") {
+                        Some((v, v))
+                    } else {
+                        v.split_once("-")
+                    };
                     if let Some((arch, _)) = v {
                         let info = header_map.entry(revision).or_insert(RevisionInfo::default());
                         info.target_arch.replace(arch);

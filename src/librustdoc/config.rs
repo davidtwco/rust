@@ -674,7 +674,7 @@ impl Options {
             }
         }
 
-        let target = parse_target_triple(early_dcx, matches);
+        let target = parse_target_triple(early_dcx, matches, &unstable_opts);
         let maybe_sysroot = matches.opt_str("sysroot").map(PathBuf::from);
 
         let sysroot = match &maybe_sysroot {

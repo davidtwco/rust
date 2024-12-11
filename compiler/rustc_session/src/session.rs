@@ -983,7 +983,10 @@ pub fn build_session(
     let cap_lints_allow = sopts.lint_cap.is_some_and(|cap| cap == lint::Allow);
     let can_emit_warnings = !(warnings_allow || cap_lints_allow);
 
-    let host_triple = TargetTuple::from_tuple(config::host_tuple());
+    let host_triple = TargetTuple::from_tuple_and_flags(
+        config::host_tuple(),
+        sopts.unstable_opts.target_spec.clone(),
+    );
     let (host, target_warnings) = Target::search(&host_triple, &sysroot).unwrap_or_else(|e| {
         early_dcx.early_fatal(format!("Error loading host specification: {e}"))
     });

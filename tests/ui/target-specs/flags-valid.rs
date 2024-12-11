@@ -1,0 +1,39 @@
+//@ check-pass
+//@ compile-flags: --print=target-spec-json -Zunstable-options
+//@ compile-flags: --target=aarch64-flags-flags
+//@ compile-flags: -Ztarget-spec=arch="aarch64"
+//@ compile-flags: -Ztarget-spec=crt-objects-fallback="false"
+//@ compile-flags: -Ztarget-spec=crt-static-respected=true
+//@ compile-flags: -Ztarget-spec=data-layout="e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
+//@ compile-flags: -Ztarget-spec=dynamic-linking=true
+//@ compile-flags: -Ztarget-spec=env="gnu"
+//@ compile-flags: -Ztarget-spec=features="+v8a,+outline-atomics"
+//@ compile-flags: -Ztarget-spec=has-rpath=true
+//@ compile-flags: -Ztarget-spec=has-thread-local=true
+//@ compile-flags: -Ztarget-spec=linker-flavor="gnu-cc"
+//@ compile-flags: -Ztarget-spec=llvm-target="aarch64-unknown-linux-gnu"
+//@ compile-flags: -Ztarget-spec=max-atomic-width=128
+//@ compile-flags: -Ztarget-spec=metadata.description="flags!"
+//@ compile-flags: -Ztarget-spec=metadata.host_tools=true
+//@ compile-flags: -Ztarget-spec=metadata.std=true
+//@ compile-flags: -Ztarget-spec=metadata.tier=1
+//@ compile-flags: -Ztarget-spec=os="linux"
+//@ compile-flags: -Ztarget-spec=position-independent-executables=true
+//@ compile-flags: -Ztarget-spec=relro-level="full"
+//@ compile-flags: -Ztarget-spec=stack-probes.kind="inline"
+//@ compile-flags: -Ztarget-spec=supported-sanitizers="address"
+//@ compile-flags: -Ztarget-spec=supported-sanitizers="leak"
+//@ compile-flags: -Ztarget-spec=supported-sanitizers="memory"
+//@ compile-flags: -Ztarget-spec=supported-sanitizers="thread"
+//@ compile-flags: -Ztarget-spec=supported-sanitizers="hwaddress"
+//@ compile-flags: -Ztarget-spec=supported-sanitizers="cfi"
+//@ compile-flags: -Ztarget-spec=supported-sanitizers="memtag"
+//@ compile-flags: -Ztarget-spec=supported-sanitizers="kcfi"
+//@ compile-flags: -Ztarget-spec=supported-split-debuginfo="packed"
+//@ compile-flags: -Ztarget-spec=supported-split-debuginfo="unpacked"
+//@ compile-flags: -Ztarget-spec=supported-split-debuginfo="off"
+//@ compile-flags: -Ztarget-spec=supports-xray=true
+//@ compile-flags: -Ztarget-spec=target-family="unix"
+//@ compile-flags: -Ztarget-spec=target-mcount="\u0001_mcount"
+//@ compile-flags: -Ztarget-spec=target-pointer-width="64"
+//@ needs-llvm-components:

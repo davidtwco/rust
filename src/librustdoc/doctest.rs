@@ -409,7 +409,12 @@ pub(crate) struct UnusedExterns {
 
 fn add_exe_suffix(input: String, target: &TargetTuple) -> String {
     let exe_suffix = match target {
-        TargetTuple::TargetTuple(_) => Target::expect_builtin(target).options.exe_suffix,
+        TargetTuple::TargetTuple { flags: None, .. } => {
+            Target::expect_builtin(target).options.exe_suffix
+        }
+        TargetTuple::TargetTuple { flags: Some(flags), .. } => {
+            Target::from_flags(flags).unwrap().0.options.exe_suffix
+        }
         TargetTuple::TargetJson { contents, .. } => {
             Target::from_json(contents.parse().unwrap()).unwrap().0.options.exe_suffix
         }
@@ -506,11 +511,18 @@ fn run_test(
         compiler.arg("--emit=metadata");
     }
     compiler.arg("--target").arg(match &rustdoc_options.target {
-        TargetTuple::TargetTuple(s) => s,
+        TargetTuple::TargetTuple { tuple, .. } => tuple,
         TargetTuple::TargetJson { path_for_rustdoc, .. } => {
             path_for_rustdoc.to_str().expect("target path must be valid unicode")
         }
     });
+    if let TargetTuple::TargetTuple { flags_for_rustdoc: Some(flags_for_rustdoc), .. } =
+        &rustdoc_options.target
+    {
+        for flag in flags_for_rustdoc {
+            compiler.arg(flag);
+        }
+    }
     if let ErrorOutputType::HumanReadable(kind, color_config) = rustdoc_options.error_format {
         let short = kind.short();
         let unicode = kind == HumanReadableErrorType::Unicode;

@@ -506,7 +506,10 @@ impl<'a, 'tcx> CrateLoader<'a, 'tcx> {
         locator.reset();
         locator.is_proc_macro = true;
         locator.target = &self.sess.host;
-        locator.tuple = TargetTuple::from_tuple(config::host_tuple());
+        locator.tuple = TargetTuple::from_tuple_and_flags(
+            config::host_tuple(),
+            self.sess.opts.unstable_opts.target_spec.clone(),
+        );
         locator.filesearch = self.sess.host_filesearch();
         locator.path_kind = path_kind;
 

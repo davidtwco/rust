@@ -2055,16 +2055,35 @@ fn collect_print_requests(
     prints
 }
 
-pub fn parse_target_triple(early_dcx: &EarlyDiagCtxt, matches: &getopts::Matches) -> TargetTuple {
-    match matches.opt_str("target") {
+pub fn parse_target_triple(
+    early_dcx: &EarlyDiagCtxt,
+    top_level_opts: &getopts::Matches,
+    unstable_opts: &UnstableOptions,
+) -> TargetTuple {
+    match top_level_opts.opt_str("target") {
         Some(target) if target.ends_with(".json") => {
+            if !unstable_opts.target_spec.is_empty() {
+                early_dcx.early_fatal(format!(
+                    "JSON target specifications are incompatible with `-Ztarget-spec`"
+                ));
+            }
+
             let path = Path::new(&target);
             TargetTuple::from_path(path).unwrap_or_else(|_| {
                 early_dcx.early_fatal(format!("target file {path:?} does not exist"))
             })
         }
-        Some(target) => TargetTuple::TargetTuple(target),
-        _ => TargetTuple::from_tuple(host_tuple()),
+        Some(target) => {
+            TargetTuple::from_tuple_and_flags(target.as_str(), unstable_opts.target_spec.clone())
+        }
+        _ => {
+            if !unstable_opts.target_spec.is_empty() {
+                early_dcx
+                    .early_fatal(format!("`-Ztarget-spec` requires `--target` to name the target"));
+            }
+
+            TargetTuple::from_tuple(host_tuple())
+        }
     }
 }
 
@@ -2491,7 +2510,7 @@ pub fn build_session_options(early_dcx: &mut EarlyDiagCtxt, matches: &getopts::M
     let cg = cg;
 
     let sysroot_opt = matches.opt_str("sysroot").map(|m| PathBuf::from(&m));
-    let target_triple = parse_target_triple(early_dcx, matches);
+    let target_triple = parse_target_triple(early_dcx, matches, &unstable_opts);
     let opt_level = parse_opt_level(early_dcx, matches, &cg);
     // The `-g` and `-C debuginfo` flags specify the same setting, so we want to be able
     // to use them interchangeably. See the note above (regarding `-O` and `-C opt-level`)
@@ -3003,6 +3022,7 @@ pub(crate) mod dep_tracking {
         InliningThreshold,
         FunctionReturn,
         WasmCAbi,
+        rustc_target::json::Json,
     );
 
     impl<T1, T2> DepTrackingHash for (T1, T2)

@@ -2,12 +2,78 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-use serde_json::Value;
+use serde_json::{Map, Value};
+use tracing::debug;
 
-use super::{Target, TargetKind, TargetOptions, TargetWarnings};
+use super::{Target, TargetKind, TargetOptions, TargetSpecFlag, TargetWarnings};
 use crate::json::{Json, ToJson};
 
 impl Target {
+    /// Creates a target descriptor from `-Ztarget-spec` flags, which contain key-value pairs
+    /// from which a target JSON spec is assembled and then loaded.
+    pub fn from_flags(flags: &[TargetSpecFlag]) -> Result<(Target, TargetWarnings), String> {
+        let mut spec = Map::new();
+        for (key, val) in flags {
+            // e.g. "metadata.name" => ["metadata", "name"]
+            let obj_keys: Vec<_> = key.split('.').collect();
+            debug_assert!(obj_keys.len() >= 1);
+
+            let mut current = &mut spec;
+            // Start with `current` being the root JSON object and narrow
+            // it down to the nested JSON object that the actual value will
+            // be inserted into. Create intermediate objects if the key doesn't
+            // already exist with another type.
+            //
+            // e.g. ["metadata", "name"] => { "metadata": { } }
+            //                                            ^^^ current
+            for (i, part) in obj_keys.iter().take(obj_keys.len() - 1).enumerate() {
+                if current.contains_key(*part) {
+                    if let Some(next) = current.get_mut(*part)
+                        && let Some(obj) = next.as_object_mut()
+                    {
+                        current = obj;
+                    } else {
+                        let conflicting_key = obj_keys[..i].join(".");
+                        return Err(format!(
+                            "{conflicting_key} already set to a value by a previous flag"
+                        ));
+                    }
+                } else {
+                    current.insert(part.to_string(), Value::from(Map::new()));
+                    current = current.get_mut(*part).unwrap().as_object_mut().unwrap();
+                }
+            }
+
+            // Insert `val` into `current`. If `key` already exists in `current`, then
+            // convert it to an array with the existing element and add this element to
+            // that.
+            //
+            // e.g. key=metadata.name, val=1 => { "metadata": { "name": 1 } }
+            //      key=metadata.name, val=2 => { "metadata": { "name": [1, 2] } }
+            let key = obj_keys.last().unwrap();
+            current
+                .entry(key.to_string())
+                .and_modify(|e| {
+                    if let Some(arr) = e.as_array_mut() {
+                        arr.push(val.clone());
+                    } else {
+                        let mut existing = Value::from(Vec::<Value>::new());
+                        std::mem::swap(&mut existing, e);
+
+                        let arr = e.as_array_mut().unwrap();
+                        arr.push(existing);
+                        arr.push(val.clone());
+                    }
+                })
+                .or_insert_with(|| val.clone());
+        }
+
+        // `spec` should now be idential to the JSON object that would have been parsed
+        // if this target were loaded from a file.
+        debug!(?spec);
+        Target::from_json(spec.into())
+    }
+
     /// Loads a target descriptor from a JSON object.
     pub fn from_json(obj: Json) -> Result<(Target, TargetWarnings), String> {
         // While ugly, this code must remain this way to retain
@@ -22,20 +88,36 @@ impl Target {
             _ => return Err("Expected JSON object for target")?,
         };
 
-        let mut get_req_field = |name: &str| {
+        let get_req_str_field = |obj: &mut serde_json::Map<String, Value>, name: &str| {
             obj.remove(name)
                 .and_then(|j| j.as_str().map(str::to_string))
                 .ok_or_else(|| format!("Field {name} in target specification is required"))
         };
+        let get_req_u32_field =
+            |obj: &mut serde_json::Map<String, Value>, name: &str| -> Result<u32, String> {
+                let Some(val) = obj.remove(name) else {
+                    return Err(format!("Field {name} in target specification is required"));
+                };
+
+                if let Some(val) = val.as_number().and_then(serde_json::Number::as_u64)
+                    && let Ok(val) = u32::try_from(val)
+                {
+                    return Ok(val);
+                } else if let Some(s) = val.as_str()
+                    && let Ok(val) = s.parse::<u32>()
+                {
+                    return Ok(val);
+                }
+
+                Err("target-pointer-width must be a u32".to_string())
+            };
 
         let mut base = Target {
-            llvm_target: get_req_field("llvm-target")?.into(),
+            llvm_target: get_req_str_field(&mut obj, "llvm-target")?.into(),
             metadata: Default::default(),
-            pointer_width: get_req_field("target-pointer-width")?
-                .parse::<u32>()
-                .map_err(|_| "target-pointer-width must be an integer".to_string())?,
-            data_layout: get_req_field("data-layout")?.into(),
-            arch: get_req_field("arch")?.into(),
+            pointer_width: get_req_u32_field(&mut obj, "target-pointer-width")?,
+            data_layout: get_req_str_field(&mut obj, "data-layout")?.into(),
+            arch: get_req_str_field(&mut obj, "arch")?.into(),
             options: Default::default(),
         };
 

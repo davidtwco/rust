@@ -3210,10 +3210,11 @@ impl Target {
 
     /// Load a built-in target
     pub fn expect_builtin(target_tuple: &TargetTuple) -> Target {
-        match *target_tuple {
-            TargetTuple::TargetTuple(ref target_tuple) => {
-                load_builtin(target_tuple).expect("built-in target")
+        match target_tuple {
+            TargetTuple::TargetTuple { flags, .. } if flags.is_some() => {
+                panic!("built-in targets doesn't support `-Ztarget-spec`")
             }
+            TargetTuple::TargetTuple { tuple, .. } => load_builtin(tuple).expect("built-in target"),
             TargetTuple::TargetJson { .. } => {
                 panic!("built-in targets doesn't support target-paths")
             }
@@ -3242,15 +3243,20 @@ impl Target {
         }
 
         match *target_tuple {
-            TargetTuple::TargetTuple(ref target_tuple) => {
+            TargetTuple::TargetTuple { ref tuple, ref flags, .. } => {
+                // if there are `-Ztarget-spec` flags, then load from those
+                if let Some(flags) = flags {
+                    return Target::from_flags(flags);
+                }
+
                 // check if tuple is in list of built-in targets
-                if let Some(t) = load_builtin(target_tuple) {
+                if let Some(t) = load_builtin(tuple) {
                     return Ok((t, TargetWarnings::empty()));
                 }
 
                 // search for a file named `target_tuple`.json in RUST_TARGET_PATH
                 let path = {
-                    let mut target = target_tuple.to_string();
+                    let mut target = tuple.to_string();
                     target.push_str(".json");
                     PathBuf::from(target)
                 };
@@ -3266,7 +3272,7 @@ impl Target {
 
                 // Additionally look in the sysroot under `lib/rustlib/<tuple>/target.json`
                 // as a fallback.
-                let rustlib_path = crate::relative_target_rustlib_path(sysroot, target_tuple);
+                let rustlib_path = crate::relative_target_rustlib_path(sysroot, tuple);
                 let p = PathBuf::from_iter([
                     Path::new(sysroot),
                     Path::new(&rustlib_path),
@@ -3276,7 +3282,7 @@ impl Target {
                     return load_file(&p);
                 }
 
-                Err(format!("Could not find specification for target {target_tuple:?}"))
+                Err(format!("Could not find specification for target {tuple:?}"))
             }
             TargetTuple::TargetJson { ref contents, .. } => {
                 let obj = serde_json::from_str(contents).map_err(|e| e.to_string())?;
@@ -3310,10 +3316,28 @@ impl Target {
     }
 }
 
+pub type TargetSpecFlag = (String, serde_json::Value);
+
+pub fn parse_target_specification_flag(v: &str) -> Option<TargetSpecFlag> {
+    v.split_once('=').and_then(|(key, val)| {
+        serde_json::from_str(val)
+            .or_else(|_| serde_json::from_str(&format!("\"{val}\"")))
+            .ok()
+            .map(|val| (key.to_string(), val))
+    })
+}
+
 /// Either a target tuple string or a path to a JSON file.
 #[derive(Clone, Debug)]
 pub enum TargetTuple {
-    TargetTuple(String),
+    TargetTuple {
+        tuple: String,
+        // Parsed `-Ztarget-spec` flags, if any.
+        flags: Option<Vec<TargetSpecFlag>>,
+        /// Warning: This field may only be used by rustdoc. Using it anywhere else will lead to
+        /// inconsistencies as it is discarded during serialization.
+        flags_for_rustdoc: Option<Vec<String>>,
+    },
     TargetJson {
         /// Warning: This field may only be used by rustdoc. Using it anywhere else will lead to
         /// inconsistencies as it is discarded during serialization.
@@ -3327,7 +3351,10 @@ pub enum TargetTuple {
 impl PartialEq for TargetTuple {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::TargetTuple(l0), Self::TargetTuple(r0)) => l0 == r0,
+            (
+                Self::TargetTuple { tuple: l_target, flags: l_flags, flags_for_rustdoc: _ },
+                Self::TargetTuple { tuple: r_target, flags: r_flags, flags_for_rustdoc: _ },
+            ) => l_target == r_target && l_flags == r_flags,
             (
                 Self::TargetJson { path_for_rustdoc: _, tuple: l_tuple, contents: l_contents },
                 Self::TargetJson { path_for_rustdoc: _, tuple: r_tuple, contents: r_contents },
@@ -3341,9 +3368,10 @@ impl PartialEq for TargetTuple {
 impl Hash for TargetTuple {
     fn hash<H: Hasher>(&self, state: &mut H) -> () {
         match self {
-            TargetTuple::TargetTuple(tuple) => {
+            TargetTuple::TargetTuple { flags_for_rustdoc: _, tuple, flags } => {
                 0u8.hash(state);
-                tuple.hash(state)
+                tuple.hash(state);
+                flags.hash(state)
             }
             TargetTuple::TargetJson { path_for_rustdoc: _, tuple, contents } => {
                 1u8.hash(state);
@@ -3358,9 +3386,21 @@ impl Hash for TargetTuple {
 impl<S: Encoder> Encodable<S> for TargetTuple {
     fn encode(&self, s: &mut S) {
         match self {
-            TargetTuple::TargetTuple(tuple) => {
+            TargetTuple::TargetTuple { flags_for_rustdoc: _, tuple, flags } => {
                 s.emit_u8(0);
                 s.emit_str(tuple);
+                if let Some(flags) = flags {
+                    s.emit_usize(flags.len());
+                    for (key, val) in flags {
+                        s.emit_str(key);
+                        s.emit_str(
+                            &serde_json::to_string(val)
+                                .expect("cannot serialise parsed json value"),
+                        );
+                    }
+                } else {
+                    s.emit_usize(0);
+                }
             }
             TargetTuple::TargetJson { path_for_rustdoc: _, tuple, contents } => {
                 s.emit_u8(1);
@@ -3374,7 +3414,23 @@ impl<S: Encoder> Encodable<S> for TargetTuple {
 impl<D: Decoder> Decodable<D> for TargetTuple {
     fn decode(d: &mut D) -> Self {
         match d.read_u8() {
-            0 => TargetTuple::TargetTuple(d.read_str().to_owned()),
+            0 => {
+                let tuple = d.read_str().to_owned();
+                let len = d.read_usize();
+                let flags = if len == 0 {
+                    None
+                } else {
+                    let mut flags = Vec::new();
+                    for _ in 0..len {
+                        let key = d.read_str().to_owned();
+                        let val = serde_json::from_str(d.read_str())
+                            .expect("serialized json value does not deserialise");
+                        flags.push((key, val))
+                    }
+                    Some(flags)
+                };
+                TargetTuple::TargetTuple { tuple, flags, flags_for_rustdoc: None }
+            }
             1 => TargetTuple::TargetJson {
                 path_for_rustdoc: PathBuf::new(),
                 tuple: d.read_str().to_owned(),
@@ -3390,7 +3446,29 @@ impl<D: Decoder> Decodable<D> for TargetTuple {
 impl TargetTuple {
     /// Creates a target tuple from the passed target tuple string.
     pub fn from_tuple(tuple: &str) -> Self {
-        TargetTuple::TargetTuple(tuple.into())
+        TargetTuple::TargetTuple { tuple: tuple.into(), flags: None, flags_for_rustdoc: None }
+    }
+
+    /// Creates a target tuple from the passed target tuple string and
+    /// `-Ztarget-spec` flags.
+    pub fn from_tuple_and_flags(tuple: &str, flags: Vec<TargetSpecFlag>) -> Self {
+        let (flags, flags_for_rustdoc) = if flags.is_empty() {
+            (None, None)
+        } else {
+            // Recreate the flags that the user passed for rustdoc. rustdoc has a `serde_json`
+            // dependency and could do this but the versions can mismatch.
+            let flags_for_rustdoc = flags
+                .iter()
+                .map(|(key, val)| {
+                    format!(
+                        "-Ztarget-spec={key}={}",
+                        serde_json::to_string(val).expect("cannot serialize parsed json value"),
+                    )
+                })
+                .collect::<Vec<_>>();
+            (Some(flags), Some(flags_for_rustdoc))
+        };
+        TargetTuple::TargetTuple { tuple: tuple.into(), flags, flags_for_rustdoc }
     }
 
     /// Creates a target tuple from the passed target path.
@@ -3416,9 +3494,8 @@ impl TargetTuple {
     /// If this target is a path, the file name (without extension) is returned.
     pub fn tuple(&self) -> &str {
         match *self {
-            TargetTuple::TargetTuple(ref tuple) | TargetTuple::TargetJson { ref tuple, .. } => {
-                tuple
-            }
+            TargetTuple::TargetTuple { ref tuple, .. }
+            | TargetTuple::TargetJson { ref tuple, .. } => tuple,
         }
     }
 
@@ -3430,7 +3507,7 @@ impl TargetTuple {
         use std::hash::DefaultHasher;
 
         match self {
-            TargetTuple::TargetTuple(tuple) => tuple.to_owned(),
+            TargetTuple::TargetTuple { tuple, .. } => tuple.to_owned(),
             TargetTuple::TargetJson { path_for_rustdoc: _, tuple, contents: content } => {
                 let mut hasher = DefaultHasher::new();
                 content.hash(&mut hasher);
