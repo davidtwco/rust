@@ -12,6 +12,7 @@ use rustc_middle::hir::nested_filter;
 use rustc_middle::ty::{self, TyCtxt};
 use rustc_serialize::opaque::{FileEncoder, MemDecoder};
 use rustc_serialize::{Decodable, Encodable};
+use rustc_session::config::MatchesExt;
 use rustc_session::getopts;
 use rustc_span::def_id::{CrateNum, DefPathHash, LOCAL_CRATE};
 use rustc_span::edition::Edition;
@@ -31,7 +32,7 @@ pub(crate) struct ScrapeExamplesOptions {
 
 impl ScrapeExamplesOptions {
     pub(crate) fn new(matches: &getopts::Matches, dcx: DiagCtxtHandle<'_>) -> Option<Self> {
-        let output_path = matches.opt_str("scrape-examples-output-path");
+        let output_path = matches.opt_str_last("scrape-examples-output-path");
         let target_crates = matches.opt_strs("scrape-examples-target-crate");
         let scrape_tests = matches.opt_present("scrape-tests");
         match (output_path, !target_crates.is_empty(), scrape_tests) {

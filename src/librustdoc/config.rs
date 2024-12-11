@@ -9,8 +9,8 @@ use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::DiagCtxtHandle;
 use rustc_session::config::{
     self, CodegenOptions, CrateType, ErrorOutputType, Externs, Input, JsonUnusedExterns,
-    UnstableOptions, get_cmd_lint_options, nightly_options, parse_crate_types_from_list,
-    parse_externs, parse_target_triple,
+    MatchesExt, UnstableOptions, get_cmd_lint_options, nightly_options,
+    parse_crate_types_from_list, parse_externs, parse_target_triple,
 };
 use rustc_session::lint::Level;
 use rustc_session::search_paths::SearchPath;
@@ -380,7 +380,7 @@ impl Options {
             config::parse_json(early_dcx, matches);
         let error_format =
             config::parse_error_format(early_dcx, matches, color, json_color, json_rendered);
-        let diagnostic_width = matches.opt_get("diagnostic-width").unwrap_or_default();
+        let diagnostic_width = matches.opt_get_last("diagnostic-width").unwrap_or_default();
 
         let codegen_options = CodegenOptions::build(early_dcx, matches);
         let unstable_opts = UnstableOptions::build(early_dcx, matches);
@@ -441,7 +441,7 @@ impl Options {
         }
 
         // check for `--output-format=json`
-        if !matches!(matches.opt_str("output-format").as_deref(), None | Some("html"))
+        if !matches!(matches.opt_str_last("output-format").as_deref(), None | Some("html"))
             && !matches.opt_present("show-coverage")
             && !nightly_options::is_unstable_enabled(matches)
         {
@@ -492,7 +492,7 @@ impl Options {
             InputMode::HasFile(make_input(early_dcx, ""))
         } else {
             match matches.free.as_slice() {
-                [] if matches.opt_str("merge").as_deref() == Some("finalize") => {
+                [] if matches.opt_str_last("merge").as_deref() == Some("finalize") => {
                     InputMode::NoInputMergeFinalize
                 }
                 [] => dcx.fatal("missing file operand"),
@@ -508,7 +508,7 @@ impl Options {
         };
 
         let parts_out_dir =
-            match matches.opt_str("parts-out-dir").map(PathToParts::from_flag).transpose() {
+            match matches.opt_str_last("parts-out-dir").map(PathToParts::from_flag).transpose() {
                 Ok(parts_out_dir) => parts_out_dir,
                 Err(e) => dcx.fatal(e),
             };
@@ -519,7 +519,7 @@ impl Options {
 
         let default_settings: Vec<Vec<(String, String)>> = vec![
             matches
-                .opt_str("default-theme")
+                .opt_str_last("default-theme")
                 .iter()
                 .flat_map(|theme| {
                     vec![
@@ -577,7 +577,7 @@ impl Options {
         let mut output_to_stdout = false;
         let test_builder_wrappers =
             matches.opt_strs("test-builder-wrapper").iter().map(PathBuf::from).collect();
-        let output = match (matches.opt_str("out-dir"), matches.opt_str("output")) {
+        let output = match (matches.opt_str_last("out-dir"), matches.opt_str_last("output")) {
             (Some(_), Some(_)) => {
                 dcx.fatal("cannot use both 'out-dir' and 'output' at once");
             }
@@ -591,7 +591,7 @@ impl Options {
         let cfgs = matches.opt_strs("cfg");
         let check_cfgs = matches.opt_strs("check-cfg");
 
-        let extension_css = matches.opt_str("e").map(|s| PathBuf::from(&s));
+        let extension_css = matches.opt_str_last("e").map(|s| PathBuf::from(&s));
 
         if let Some(ref p) = extension_css {
             if !p.is_file() {
@@ -662,12 +662,12 @@ impl Options {
             dcx.fatal("`ExternalHtml::load` failed");
         };
 
-        match matches.opt_str("r").as_deref() {
+        match matches.opt_str_last("r").as_deref() {
             Some("rust") | None => {}
             Some(s) => dcx.fatal(format!("unknown input format: {s}")),
         }
 
-        let index_page = matches.opt_str("index-page").map(|s| PathBuf::from(&s));
+        let index_page = matches.opt_str_last("index-page").map(|s| PathBuf::from(&s));
         if let Some(ref index_page) = index_page {
             if !index_page.is_file() {
                 dcx.fatal("option `--index-page` argument must be a file");
@@ -675,7 +675,7 @@ impl Options {
         }
 
         let target = parse_target_triple(early_dcx, matches);
-        let maybe_sysroot = matches.opt_str("sysroot").map(PathBuf::from);
+        let maybe_sysroot = matches.opt_str_last("sysroot").map(PathBuf::from);
 
         let sysroot = match &maybe_sysroot {
             Some(s) => s.clone(),
@@ -708,7 +708,7 @@ impl Options {
             }
         };
 
-        let output_format = match matches.opt_str("output-format") {
+        let output_format = match matches.opt_str_last("output-format") {
             Some(s) => match OutputFormat::try_from(s.as_str()) {
                 Ok(out_fmt) => {
                     if !out_fmt.is_json() && show_coverage {
@@ -722,30 +722,30 @@ impl Options {
             },
             None => OutputFormat::default(),
         };
-        let crate_name = matches.opt_str("crate-name");
+        let crate_name = matches.opt_str_last("crate-name");
         let bin_crate = crate_types.contains(&CrateType::Executable);
         let proc_macro_crate = crate_types.contains(&CrateType::ProcMacro);
-        let playground_url = matches.opt_str("playground-url");
+        let playground_url = matches.opt_str_last("playground-url");
         let module_sorting = if matches.opt_present("sort-modules-by-appearance") {
             ModuleSorting::DeclarationOrder
         } else {
             ModuleSorting::Alphabetical
         };
-        let resource_suffix = matches.opt_str("resource-suffix").unwrap_or_default();
+        let resource_suffix = matches.opt_str_last("resource-suffix").unwrap_or_default();
         let markdown_no_toc = matches.opt_present("markdown-no-toc");
         let markdown_css = matches.opt_strs("markdown-css");
-        let markdown_playground_url = matches.opt_str("markdown-playground-url");
-        let crate_version = matches.opt_str("crate-version");
+        let markdown_playground_url = matches.opt_str_last("markdown-playground-url");
+        let crate_version = matches.opt_str_last("crate-version");
         let enable_index_page = matches.opt_present("enable-index-page") || index_page.is_some();
-        let static_root_path = matches.opt_str("static-root-path");
-        let test_run_directory = matches.opt_str("test-run-directory").map(PathBuf::from);
-        let persist_doctests = matches.opt_str("persist-doctests").map(PathBuf::from);
-        let test_builder = matches.opt_str("test-builder").map(PathBuf::from);
+        let static_root_path = matches.opt_str_last("static-root-path");
+        let test_run_directory = matches.opt_str_last("test-run-directory").map(PathBuf::from);
+        let persist_doctests = matches.opt_str_last("persist-doctests").map(PathBuf::from);
+        let test_builder = matches.opt_str_last("test-builder").map(PathBuf::from);
         let codegen_options_strs = matches.opt_strs("C");
         let unstable_opts_strs = matches.opt_strs("Z");
         let lib_strs = matches.opt_strs("L");
         let extern_strs = matches.opt_strs("extern");
-        let runtool = matches.opt_str("runtool");
+        let runtool = matches.opt_str_last("runtool");
         let runtool_args = matches.opt_strs("runtool-arg");
         let enable_per_target_ignores = matches.opt_present("enable-per-target-ignores");
         let document_private = matches.opt_present("document-private-items");
@@ -977,7 +977,7 @@ pub(crate) struct ShouldMerge {
 /// Extracts read_rendered_cci and write_rendered_cci from command line arguments, or
 /// reports an error if an invalid option was provided
 fn parse_merge(m: &getopts::Matches) -> Result<ShouldMerge, &'static str> {
-    match m.opt_str("merge").as_deref() {
+    match m.opt_str_last("merge").as_deref() {
         // default = read-write
         None => Ok(ShouldMerge { read_rendered_cci: true, write_rendered_cci: true }),
         Some("none") if m.opt_present("include-parts-dir") => {

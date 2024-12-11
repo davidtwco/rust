@@ -52,8 +52,8 @@ use rustc_metadata::locator;
 use rustc_middle::ty::TyCtxt;
 use rustc_parse::{new_parser_from_file, new_parser_from_source_str, unwrap_or_emit_fatal};
 use rustc_session::config::{
-    CG_OPTIONS, ErrorOutputType, Input, OutFileName, OutputType, UnstableOptions, Z_OPTIONS,
-    nightly_options,
+    CG_OPTIONS, ErrorOutputType, Input, MatchesExt, OutFileName, OutputType, UnstableOptions,
+    Z_OPTIONS, nightly_options,
 };
 use rustc_session::getopts::{self, Matches};
 use rustc_session::lint::{Lint, LintId};
@@ -311,7 +311,7 @@ fn run_compiler(
     // fully initialize ice path static once unstable options are available as context
     let ice_file = ice_path_with_config(Some(&sopts.unstable_opts)).clone();
 
-    if let Some(ref code) = matches.opt_str("explain") {
+    if let Some(ref code) = matches.opt_str_last("explain") {
         handle_explain(&default_early_dcx, diagnostics_registry(), code, sopts.color);
         return;
     }
@@ -373,6 +373,7 @@ fn run_compiler(
             return early_exit();
         }
 
+        tracing::debug!(?sess.opts.edition);
         if !has_input {
             #[allow(rustc::diagnostic_outside_of_impl)]
             sess.dcx().fatal("no input filename given"); // this is fatal
@@ -486,8 +487,8 @@ fn dump_feature_usage_metrics(tcxt: TyCtxt<'_>, metrics_dir: &PathBuf) {
 
 // Extract output directory and file from matches.
 fn make_output(matches: &getopts::Matches) -> (Option<PathBuf>, Option<OutFileName>) {
-    let odir = matches.opt_str("out-dir").map(|o| PathBuf::from(&o));
-    let ofile = matches.opt_str("o").map(|o| match o.as_str() {
+    let odir = matches.opt_str_last("out-dir").map(|o| PathBuf::from(&o));
+    let ofile = matches.opt_str_last("o").map(|o| match o.as_str() {
         "-" => OutFileName::Stdout,
         path => OutFileName::Real(PathBuf::from(path)),
     });

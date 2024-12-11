@@ -1367,6 +1367,50 @@ pub fn build_target_config(early_dcx: &EarlyDiagCtxt, opts: &Options, sysroot: &
     }
 }
 
+pub trait MatchesExt {
+    fn opt_str_last(&self, nm: &str) -> Option<String>;
+    fn opt_get_last<T>(&self, nm: &str) -> Result<Option<T>, T::Err>
+    where
+        T: FromStr;
+
+    fn opts_str(&self, names: &[String]) -> Option<String>;
+    fn opt_get<T>(&self, nm: &str) -> Result<Option<T>, T::Err>
+    where
+        T: FromStr;
+}
+
+// getopts uses `opt_val` internally for its helper functions which only looks for the first
+// argument, not the last argument, which is the desired behaviour, so provide alternatives which
+// use `opt_strs` and take the last element to get the desired argument.
+impl MatchesExt for getopts::Matches {
+    fn opt_str_last(&self, nm: &str) -> Option<String> {
+        debug!("{:?}", self.opt_strs(nm));
+        self.opt_strs(nm).pop()
+    }
+    fn opt_get_last<T>(&self, nm: &str) -> Result<Option<T>, T::Err>
+    where
+        T: FromStr,
+    {
+        match self.opt_strs(nm).pop() {
+            Some(s) => Ok(Some(s.parse()?)),
+            None => Ok(None),
+        }
+    }
+
+    // Deliberately conflict with getopts' names so that uses of these functions
+    // will error and hopefully prompt the user to look into why rustc has an extension
+    // trait here.
+    fn opts_str(&self, _: &[String]) -> Option<String> {
+        panic!("use `opt_str_last` instead")
+    }
+    fn opt_get<T>(&self, _: &str) -> Result<Option<T>, T::Err>
+    where
+        T: FromStr,
+    {
+        panic!("use `opt_str_last` instead")
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum OptionStability {
     Stable,
@@ -1375,21 +1419,10 @@ pub enum OptionStability {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum OptionKind {
-    /// An option that takes a value, and cannot appear more than once (e.g. `--out-dir`).
-    ///
-    /// Corresponds to [`getopts::Options::optopt`].
-    Opt,
-
     /// An option that takes a value, and can appear multiple times (e.g. `--emit`).
     ///
     /// Corresponds to [`getopts::Options::optmulti`].
     Multi,
-
-    /// An option that does not take a value, and cannot appear more than once (e.g. `--help`).
-    ///
-    /// Corresponds to [`getopts::Options::optflag`].
-    /// The `hint` string must be empty.
-    Flag,
 
     /// An option that does not take a value, and can appear multiple times (e.g. `-O`).
     ///
@@ -1428,9 +1461,7 @@ impl RustcOptGroup {
     pub fn apply(&self, options: &mut getopts::Options) {
         let &Self { short_name, long_name, desc, value_hint, .. } = self;
         match self.kind {
-            OptionKind::Opt => options.optopt(short_name, long_name, desc, value_hint),
             OptionKind::Multi => options.optmulti(short_name, long_name, desc, value_hint),
-            OptionKind::Flag => options.optflag(short_name, long_name, desc),
             OptionKind::FlagMulti => options.optflagmulti(short_name, long_name, desc),
         };
     }
@@ -1446,8 +1477,8 @@ pub fn make_opt(
 ) -> RustcOptGroup {
     // "Flag" options don't have a value, and therefore don't have a value hint.
     match kind {
-        OptionKind::Opt | OptionKind::Multi => {}
-        OptionKind::Flag | OptionKind::FlagMulti => assert_eq!(value_hint, ""),
+        OptionKind::Multi => {}
+        OptionKind::FlagMulti => assert_eq!(value_hint, ""),
     }
     RustcOptGroup {
         name: cmp::max_by_key(short_name, long_name, |s| s.len()),
@@ -1471,13 +1502,13 @@ The default is {DEFAULT_EDITION} and the latest stable edition is {LATEST_STABLE
 /// Returns all rustc command line options, including metadata for
 /// each option, such as whether the option is stable.
 pub fn rustc_optgroups() -> Vec<RustcOptGroup> {
-    use OptionKind::{Flag, FlagMulti, Multi, Opt};
+    use OptionKind::{FlagMulti, Multi};
     use OptionStability::{Stable, Unstable};
 
     use self::make_opt as opt;
 
     let mut options = vec![
-        opt(Stable, Flag, "h", "help", "Display this message", ""),
+        opt(Stable, FlagMulti, "h", "help", "Display this message", ""),
         opt(
             Stable,
             Multi,
@@ -1512,8 +1543,8 @@ pub fn rustc_optgroups() -> Vec<RustcOptGroup> {
             "[KIND[:MODIFIERS]=]NAME[:RENAME]",
         ),
         make_crate_type_option(),
-        opt(Stable, Opt, "", "crate-name", "Specify the name of the crate being built", "NAME"),
-        opt(Stable, Opt, "", "edition", &EDITION_STRING, EDITION_NAME_LIST),
+        opt(Stable, Multi, "", "crate-name", "Specify the name of the crate being built", "NAME"),
+        opt(Stable, Multi, "", "edition", &EDITION_STRING, EDITION_NAME_LIST),
         opt(
             Stable,
             Multi,
@@ -1535,18 +1566,25 @@ pub fn rustc_optgroups() -> Vec<RustcOptGroup> {
         ),
         opt(Stable, FlagMulti, "g", "", "Equivalent to -C debuginfo=2", ""),
         opt(Stable, FlagMulti, "O", "", "Equivalent to -C opt-level=2", ""),
-        opt(Stable, Opt, "o", "", "Write output to <filename>", "FILENAME"),
-        opt(Stable, Opt, "", "out-dir", "Write output to compiler-chosen filename in <dir>", "DIR"),
+        opt(Stable, Multi, "o", "", "Write output to <filename>", "FILENAME"),
         opt(
             Stable,
-            Opt,
+            Multi,
+            "",
+            "out-dir",
+            "Write output to compiler-chosen filename in <dir>",
+            "DIR",
+        ),
+        opt(
+            Stable,
+            Multi,
             "",
             "explain",
             "Provide a detailed explanation of an error message",
             "OPT",
         ),
-        opt(Stable, Flag, "", "test", "Build a test harness", ""),
-        opt(Stable, Opt, "", "target", "Target triple for which the code is compiled", "TARGET"),
+        opt(Stable, FlagMulti, "", "test", "Build a test harness", ""),
+        opt(Stable, Multi, "", "target", "Target triple for which the code is compiled", "TARGET"),
         opt(Stable, Multi, "A", "allow", "Set lint allowed", "LINT"),
         opt(Stable, Multi, "W", "warn", "Set lint warnings", "LINT"),
         opt(Stable, Multi, "", "force-warn", "Set lint force-warn", "LINT"),
@@ -1561,8 +1599,8 @@ pub fn rustc_optgroups() -> Vec<RustcOptGroup> {
             "LEVEL",
         ),
         opt(Stable, Multi, "C", "codegen", "Set a codegen option", "OPT[=VALUE]"),
-        opt(Stable, Flag, "V", "version", "Print version info and exit", ""),
-        opt(Stable, Flag, "v", "verbose", "Use verbose output", ""),
+        opt(Stable, FlagMulti, "V", "version", "Print version info and exit", ""),
+        opt(Stable, FlagMulti, "v", "verbose", "Use verbose output", ""),
     ];
 
     // Options in this list are hidden from `rustc --help` by default, but are
@@ -1576,11 +1614,11 @@ pub fn rustc_optgroups() -> Vec<RustcOptGroup> {
             "Specify where an external rust library is located",
             "NAME[=PATH]",
         ),
-        opt(Stable, Opt, "", "sysroot", "Override the system root", "PATH"),
+        opt(Stable, Multi, "", "sysroot", "Override the system root", "PATH"),
         opt(Unstable, Multi, "Z", "", "Set unstable / perma-unstable options", "FLAG"),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "error-format",
             "How errors and other messages are produced",
@@ -1589,7 +1627,7 @@ pub fn rustc_optgroups() -> Vec<RustcOptGroup> {
         opt(Stable, Multi, "", "json", "Configure the JSON output of the compiler", "CONFIG"),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "color",
             "Configure coloring of output:
@@ -1600,7 +1638,7 @@ pub fn rustc_optgroups() -> Vec<RustcOptGroup> {
         ),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "diagnostic-width",
             "Inform rustc of the width of the output so that diagnostics can be truncated to fit",
@@ -1648,7 +1686,7 @@ pub fn get_cmd_lint_options(
         .map(|(_, lint_name, level)| (lint_name, level))
         .collect();
 
-    let lint_cap = matches.opt_str("cap-lints").map(|cap| {
+    let lint_cap = matches.opt_str_last("cap-lints").map(|cap| {
         lint::Level::from_str(&cap)
             .unwrap_or_else(|| early_dcx.early_fatal(format!("unknown lint level: `{cap}`")))
     });
@@ -1658,7 +1696,7 @@ pub fn get_cmd_lint_options(
 
 /// Parses the `--color` flag.
 pub fn parse_color(early_dcx: &EarlyDiagCtxt, matches: &getopts::Matches) -> ColorConfig {
-    match matches.opt_str("color").as_deref() {
+    match matches.opt_str_last("color").as_deref() {
         Some("auto") => ColorConfig::Auto,
         Some("always") => ColorConfig::Always,
         Some("never") => ColorConfig::Never,
@@ -1722,7 +1760,7 @@ pub fn parse_json(early_dcx: &EarlyDiagCtxt, matches: &getopts::Matches) -> Json
         // For now conservatively forbid `--color` with `--json` since `--json`
         // won't actually be emitting any colors and anything colorized is
         // embedded in a diagnostic message anyway.
-        if matches.opt_str("color").is_some() {
+        if matches.opt_str_last("color").is_some() {
             early_dcx.early_fatal("cannot specify the `--color` option with `--json`");
         }
 
@@ -1764,7 +1802,7 @@ pub fn parse_error_format(
     // is unstable, it will not be present. We have to use `opts_present` not
     // `opt_present` because the latter will panic.
     let error_format = if matches.opts_present(&["error-format".to_owned()]) {
-        match matches.opt_str("error-format").as_deref() {
+        match matches.opt_str_last("error-format").as_deref() {
             None | Some("human") => {
                 ErrorOutputType::HumanReadable(HumanReadableErrorType::Default, color)
             }
@@ -1813,7 +1851,7 @@ pub fn parse_error_format(
 }
 
 pub fn parse_crate_edition(early_dcx: &EarlyDiagCtxt, matches: &getopts::Matches) -> Edition {
-    let edition = match matches.opt_str("edition") {
+    let edition = match matches.opt_str_last("edition") {
         Some(arg) => Edition::from_str(&arg).unwrap_or_else(|_| {
             early_dcx.early_fatal(format!(
                 "argument for `--edition` must be one of: \
@@ -2056,7 +2094,7 @@ fn collect_print_requests(
 }
 
 pub fn parse_target_triple(early_dcx: &EarlyDiagCtxt, matches: &getopts::Matches) -> TargetTuple {
-    match matches.opt_str("target") {
+    match matches.opt_str_last("target") {
         Some(target) if target.ends_with(".json") => {
             let path = Path::new(&target);
             TargetTuple::from_path(path).unwrap_or_else(|_| {
@@ -2325,7 +2363,7 @@ pub fn build_session_options(early_dcx: &mut EarlyDiagCtxt, matches: &getopts::M
 
     early_dcx.abort_if_error_and_set_error_format(error_format);
 
-    let diagnostic_width = matches.opt_get("diagnostic-width").unwrap_or_else(|_| {
+    let diagnostic_width = matches.opt_get_last("diagnostic-width").unwrap_or_else(|_| {
         early_dcx.early_fatal("`--diagnostic-width` must be an positive integer");
     });
 
@@ -2490,7 +2528,7 @@ pub fn build_session_options(early_dcx: &mut EarlyDiagCtxt, matches: &getopts::M
 
     let cg = cg;
 
-    let sysroot_opt = matches.opt_str("sysroot").map(|m| PathBuf::from(&m));
+    let sysroot_opt = matches.opt_str_last("sysroot").map(|m| PathBuf::from(&m));
     let target_triple = parse_target_triple(early_dcx, matches);
     let opt_level = parse_opt_level(early_dcx, matches, &cg);
     // The `-g` and `-C debuginfo` flags specify the same setting, so we want to be able
@@ -2500,7 +2538,7 @@ pub fn build_session_options(early_dcx: &mut EarlyDiagCtxt, matches: &getopts::M
     let debuginfo = select_debuginfo(matches, &cg);
     let debuginfo_compression = unstable_opts.debuginfo_compression;
 
-    let crate_name = matches.opt_str("crate-name");
+    let crate_name = matches.opt_str_last("crate-name");
     let unstable_features = UnstableFeatures::from_environment(crate_name.as_deref());
     // Parse any `-l` flags, which link to native libraries.
     let libs = parse_native_libs(early_dcx, &unstable_opts, unstable_features, matches);
@@ -2684,7 +2722,7 @@ pub fn parse_crate_types_from_list(list_list: Vec<String>) -> Result<Vec<CrateTy
 pub mod nightly_options {
     use rustc_feature::UnstableFeatures;
 
-    use super::{OptionStability, RustcOptGroup};
+    use super::{MatchesExt, OptionStability, RustcOptGroup};
     use crate::EarlyDiagCtxt;
 
     pub fn is_unstable_enabled(matches: &getopts::Matches) -> bool {
@@ -2693,7 +2731,7 @@ pub mod nightly_options {
     }
 
     pub fn match_is_nightly_build(matches: &getopts::Matches) -> bool {
-        is_nightly_build(matches.opt_str("crate-name").as_deref())
+        is_nightly_build(matches.opt_str_last("crate-name").as_deref())
     }
 
     fn is_nightly_build(krate: Option<&str>) -> bool {

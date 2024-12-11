@@ -216,7 +216,7 @@ fn init_logging(early_dcx: &EarlyDiagCtxt) {
 }
 
 fn opts() -> Vec<RustcOptGroup> {
-    use rustc_session::config::OptionKind::{Flag, FlagMulti, Multi, Opt};
+    use rustc_session::config::OptionKind::{FlagMulti, Multi};
     use rustc_session::config::OptionStability::{Stable, Unstable};
     use rustc_session::config::make_opt as opt;
 
@@ -224,17 +224,17 @@ fn opts() -> Vec<RustcOptGroup> {
         opt(Stable, FlagMulti, "h", "help", "show this help message", ""),
         opt(Stable, FlagMulti, "V", "version", "print rustdoc's version", ""),
         opt(Stable, FlagMulti, "v", "verbose", "use verbose output", ""),
-        opt(Stable, Opt, "w", "output-format", "the output type to write", "[html]"),
+        opt(Stable, Multi, "w", "output-format", "the output type to write", "[html]"),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "output",
             "Which directory to place the output. This option is deprecated, use --out-dir instead.",
             "PATH",
         ),
-        opt(Stable, Opt, "o", "out-dir", "which directory to place the output", "PATH"),
-        opt(Stable, Opt, "", "crate-name", "specify the name of this crate", "NAME"),
+        opt(Stable, Multi, "o", "out-dir", "which directory to place the output", "PATH"),
+        opt(Stable, Multi, "", "crate-name", "specify the name of this crate", "NAME"),
         make_crate_type_option(),
         opt(Stable, Multi, "L", "library-path", "directory to add to crate search path", "DIR"),
         opt(Stable, Multi, "", "cfg", "pass a --cfg to rustc", ""),
@@ -271,13 +271,13 @@ fn opts() -> Vec<RustcOptGroup> {
         opt(Stable, Multi, "", "test-args", "arguments to pass to the test runner", "ARGS"),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "test-run-directory",
             "The working directory in which to run tests",
             "PATH",
         ),
-        opt(Stable, Opt, "", "target", "target triple to document", "TRIPLE"),
+        opt(Stable, Multi, "", "target", "target triple to document", "TRIPLE"),
         opt(
             Stable,
             Multi,
@@ -331,11 +331,11 @@ fn opts() -> Vec<RustcOptGroup> {
                 Markdown file or generated documentation",
             "FILES",
         ),
-        opt(Stable, Opt, "", "markdown-playground-url", "URL to send code snippets to", "URL"),
+        opt(Stable, Multi, "", "markdown-playground-url", "URL to send code snippets to", "URL"),
         opt(Stable, FlagMulti, "", "markdown-no-toc", "don't include table of contents", ""),
         opt(
             Stable,
-            Opt,
+            Multi,
             "e",
             "extend-css",
             "To add some CSS rules with a given file to generate doc with your own theme. \
@@ -350,10 +350,10 @@ fn opts() -> Vec<RustcOptGroup> {
             "unstable / perma-unstable options (only on nightly build)",
             "FLAG",
         ),
-        opt(Stable, Opt, "", "sysroot", "Override the system root", "PATH"),
+        opt(Stable, Multi, "", "sysroot", "Override the system root", "PATH"),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "playground-url",
             "URL to send code snippets to, may be reset by --markdown-playground-url \
@@ -370,7 +370,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "crate-version",
             "crate version to print into documentation",
@@ -386,7 +386,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "default-theme",
             "Set the default theme. THEME should be the theme name, generally lowercase. \
@@ -415,7 +415,7 @@ fn opts() -> Vec<RustcOptGroup> {
         opt(Stable, Multi, "", "check-theme", "check if given theme is valid", "FILES"),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "resource-suffix",
             "suffix to add to CSS and JavaScript files, \
@@ -424,7 +424,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "edition",
             "edition to use when compiling rust code (default: 2015)",
@@ -432,7 +432,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "color",
             "Configure coloring of output:
@@ -443,7 +443,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "error-format",
             "How errors and other messages are produced",
@@ -451,13 +451,13 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Stable,
-            Opt,
+            Multi,
             "",
             "diagnostic-width",
             "Provide width of the output for truncated error messages",
             "WIDTH",
         ),
-        opt(Stable, Opt, "", "json", "Configure the structure of JSON diagnostics", "CONFIG"),
+        opt(Stable, Multi, "", "json", "Configure the structure of JSON diagnostics", "CONFIG"),
         opt(Stable, Multi, "A", "allow", "Set lint allowed", "LINT"),
         opt(Stable, Multi, "W", "warn", "Set lint warnings", "LINT"),
         opt(Stable, Multi, "", "force-warn", "Set lint force-warn", "LINT"),
@@ -473,7 +473,7 @@ fn opts() -> Vec<RustcOptGroup> {
                 By default, it is at `forbid` level.",
             "LEVEL",
         ),
-        opt(Unstable, Opt, "", "index-page", "Markdown file to be used as index page", "PATH"),
+        opt(Unstable, Multi, "", "index-page", "Markdown file to be used as index page", "PATH"),
         opt(
             Unstable,
             FlagMulti,
@@ -484,7 +484,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "static-root-path",
             "Path string to force loading static files from in output pages. \
@@ -493,7 +493,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "persist-doctests",
             "Directory to persist doctest executables into",
@@ -517,7 +517,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "runtool",
             "",
@@ -533,7 +533,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "test-builder",
             "The rustc-like binary to use as the test builder",
@@ -581,10 +581,10 @@ fn opts() -> Vec<RustcOptGroup> {
             "Include the memory layout of types in the docs",
             "",
         ),
-        opt(Unstable, Flag, "", "nocapture", "Don't capture stdout and stderr of tests", ""),
+        opt(Unstable, FlagMulti, "", "nocapture", "Don't capture stdout and stderr of tests", ""),
         opt(
             Unstable,
-            Flag,
+            FlagMulti,
             "",
             "generate-link-to-definition",
             "Make the identifiers in the HTML source code pages navigable",
@@ -592,7 +592,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "scrape-examples-output-path",
             "",
@@ -606,7 +606,14 @@ fn opts() -> Vec<RustcOptGroup> {
             "",
             "collect function call information for functions from the target crate",
         ),
-        opt(Unstable, Flag, "", "scrape-tests", "Include test code when scraping examples", ""),
+        opt(
+            Unstable,
+            FlagMulti,
+            "",
+            "scrape-tests",
+            "Include test code when scraping examples",
+            "",
+        ),
         opt(
             Unstable,
             Multi,
@@ -617,7 +624,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "merge",
             "Controls how rustdoc handles files from previously documented crates in the doc root\n\
@@ -628,7 +635,7 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Unstable,
-            Opt,
+            Multi,
             "",
             "parts-out-dir",
             "Writes trait implementations and other info for the current crate to provided path. Only use with --merge=none",
@@ -678,13 +685,20 @@ fn opts() -> Vec<RustcOptGroup> {
         ),
         opt(
             Stable,
-            Opt,
+            Multi,
             "r",
             "input-format",
             "removed, see issue #44136 <https://github.com/rust-lang/rust/issues/44136> for more information",
             "[rust]",
         ),
-        opt(Unstable, Flag, "", "html-no-source", "Disable HTML source code pages generation", ""),
+        opt(
+            Unstable,
+            FlagMulti,
+            "",
+            "html-no-source",
+            "Disable HTML source code pages generation",
+            "",
+        ),
     ]
 }
 
