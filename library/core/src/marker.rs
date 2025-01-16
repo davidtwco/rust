@@ -139,6 +139,7 @@ unsafe impl<T: Sync + ?Sized> Send for &T {}
 /// ```
 ///
 /// [trait object]: ../../book/ch17-02-trait-objects.html
+#[cfg(bootstrap)]
 #[doc(alias = "?", alias = "?Sized")]
 #[stable(feature = "rust1", since = "1.0.0")]
 #[lang = "sized"]
@@ -153,6 +154,77 @@ unsafe impl<T: Sync + ?Sized> Send for &T {}
 #[rustc_coinductive]
 pub trait Sized {
     // Empty.
+}
+
+/// Types with a constant size known at compile time.
+///
+/// All type parameters have an implicit bound of `Sized`. The special syntax
+/// `?Sized` can be used to remove this bound if it's not appropriate.
+///
+/// ```
+/// # #![allow(dead_code)]
+/// struct Foo<T>(T);
+/// struct Bar<T: ?Sized>(T);
+///
+/// // struct FooUse(Foo<[i32]>); // error: Sized is not implemented for [i32]
+/// struct BarUse(Bar<[i32]>); // OK
+/// ```
+///
+/// The one exception is the implicit `Self` type of a trait. A trait does not
+/// have an implicit `Sized` bound as this is incompatible with [trait object]s
+/// where, by definition, the trait needs to work with all possible implementors,
+/// and thus could be any size.
+///
+/// Although Rust will let you bind `Sized` to a trait, you won't
+/// be able to use it to form a trait object later:
+///
+/// ```
+/// # #![allow(unused_variables)]
+/// trait Foo { }
+/// trait Bar: Sized { }
+///
+/// struct Impl;
+/// impl Foo for Impl { }
+/// impl Bar for Impl { }
+///
+/// let x: &dyn Foo = &Impl;    // OK
+/// // let y: &dyn Bar = &Impl; // error: the trait `Bar` cannot
+///                             // be made into an object
+/// ```
+///
+/// [trait object]: ../../book/ch17-02-trait-objects.html
+#[cfg(not(bootstrap))]
+#[doc(alias = "?", alias = "?Sized")]
+#[stable(feature = "rust1", since = "1.0.0")]
+#[lang = "sized"]
+#[diagnostic::on_unimplemented(
+    message = "the size for values of type `{Self}` cannot be known at compilation time",
+    label = "doesn't have a size known at compile-time"
+)]
+#[fundamental] // for Default, for example, which requires that `[T]: !Default` be evaluatable
+#[rustc_specialization_trait]
+#[rustc_deny_explicit_impl]
+#[rustc_do_not_implement_via_object]
+#[rustc_coinductive]
+pub trait Sized: MetaSized {
+    // Empty.
+}
+
+/// Types with a size that can be determined from pointer metadata.
+#[cfg(not(bootstrap))]
+#[unstable(feature = "sized_hierarchy", issue = "none")]
+#[lang = "metasized"]
+#[diagnostic::on_unimplemented(
+    message = "the size for values of type `{Self}` cannot be known",
+    label = "doesn't have a known size"
+)]
+#[fundamental]
+#[rustc_specialization_trait]
+#[rustc_deny_explicit_impl]
+#[rustc_do_not_implement_via_object]
+#[rustc_coinductive]
+pub trait MetaSized {
+    // Empty
 }
 
 /// Types that can be "unsized" to a dynamically-sized type.
