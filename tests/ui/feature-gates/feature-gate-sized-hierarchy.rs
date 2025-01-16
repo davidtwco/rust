@@ -11,7 +11,6 @@ fn main() {
     needs_sized::<u8>();
 
     needs_metasized::<str>();
-//~^ ERROR the size for values of type `str` cannot be known
     needs_sized::<str>();
 //~^ ERROR the size for values of type `str` cannot be known at compilation time
 

@@ -97,7 +97,7 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
             } else if tcx.is_lang_item(def_id, LangItem::MetaSized) {
                 // MetaSized is never implementable by end-users, it is
                 // always automatically computed.
-                let metasized_conditions = self.sized_conditions(obligation);
+                let metasized_conditions = self.metasized_conditions(obligation);
                 self.assemble_builtin_bound_candidates(metasized_conditions, &mut candidates);
             } else if tcx.is_lang_item(def_id, LangItem::Unsize) {
                 self.assemble_candidates_for_unsizing(obligation, &mut candidates);

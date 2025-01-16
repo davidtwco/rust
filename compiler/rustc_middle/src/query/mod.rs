@@ -793,6 +793,9 @@ rustc_queries! {
     query adt_sized_constraint(key: DefId) -> Option<ty::EarlyBinder<'tcx, Ty<'tcx>>> {
         desc { |tcx| "computing the `Sized` constraint for `{}`", tcx.def_path_str(key) }
     }
+    query adt_metasized_constraint(key: DefId) -> Option<ty::EarlyBinder<'tcx, Ty<'tcx>>> {
+        desc { |tcx| "computing the `MetaSized` constraint for `{}`", tcx.def_path_str(key) }
+    }
 
     query adt_dtorck_constraint(
         key: DefId

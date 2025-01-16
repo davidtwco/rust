@@ -1,18 +1,5 @@
-error[E0277]: the size for values of type `str` cannot be known
-  --> $DIR/feature-gate-sized-hierarchy.rs:13:23
-   |
-LL |     needs_metasized::<str>();
-   |                       ^^^ doesn't have a known size
-   |
-   = help: the trait `MetaSized` is not implemented for `str`
-note: required by a bound in `needs_metasized`
-  --> $DIR/feature-gate-sized-hierarchy.rs:6:32
-   |
-LL | fn needs_metasized<T: ?Sized + MetaSized>() {}
-   |                                ^^^^^^^^^ required by this bound in `needs_metasized`
-
 error[E0277]: the size for values of type `str` cannot be known at compilation time
-  --> $DIR/feature-gate-sized-hierarchy.rs:15:19
+  --> $DIR/feature-gate-sized-hierarchy.rs:14:19
    |
 LL |     needs_sized::<str>();
    |                   ^^^ doesn't have a size known at compile-time
@@ -25,7 +12,7 @@ LL | fn needs_sized<T: Sized>() {}
    |                   ^^^^^ required by this bound in `needs_sized`
 
 error[E0277]: the size for values of type `main::Foo` cannot be known
-  --> $DIR/feature-gate-sized-hierarchy.rs:22:23
+  --> $DIR/feature-gate-sized-hierarchy.rs:21:23
    |
 LL |     needs_metasized::<Foo>();
    |                       ^^^ doesn't have a known size
@@ -38,7 +25,7 @@ LL | fn needs_metasized<T: ?Sized + MetaSized>() {}
    |                                ^^^^^^^^^ required by this bound in `needs_metasized`
 
 error[E0277]: the size for values of type `main::Foo` cannot be known at compilation time
-  --> $DIR/feature-gate-sized-hierarchy.rs:24:19
+  --> $DIR/feature-gate-sized-hierarchy.rs:23:19
    |
 LL |     needs_sized::<Foo>();
    |                   ^^^ doesn't have a size known at compile-time
@@ -50,6 +37,6 @@ note: required by a bound in `needs_sized`
 LL | fn needs_sized<T: Sized>() {}
    |                   ^^^^^ required by this bound in `needs_sized`
 
-error: aborting due to 4 previous errors
+error: aborting due to 3 previous errors
 
 For more information about this error, try `rustc --explain E0277`.

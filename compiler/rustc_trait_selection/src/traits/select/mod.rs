@@ -22,6 +22,7 @@ use rustc_infer::infer::relate::TypeRelation;
 use rustc_infer::traits::{PredicateObligations, TraitObligation};
 use rustc_middle::bug;
 use rustc_middle::dep_graph::{DepNodeIndex, dep_kinds};
+use rustc_middle::traits::Sizedness;
 pub use rustc_middle::traits::select::*;
 use rustc_middle::ty::abstract_const::NotConstEvaluatable;
 use rustc_middle::ty::error::TypeErrorToStringExt;
@@ -2061,66 +2062,14 @@ impl<'tcx> SelectionContext<'_, 'tcx> {
         &mut self,
         obligation: &PolyTraitObligation<'tcx>,
     ) -> BuiltinImplConditions<'tcx> {
-        use self::BuiltinImplConditions::{Ambiguous, None, Where};
+        sizedness_conditions(self, obligation, Sizedness::Sized)
+    }
 
-        // NOTE: binder moved to (*)
-        let self_ty = self.infcx.shallow_resolve(obligation.predicate.skip_binder().self_ty());
-
-        match self_ty.kind() {
-            ty::Infer(ty::IntVar(_) | ty::FloatVar(_))
-            | ty::Uint(_)
-            | ty::Int(_)
-            | ty::Bool
-            | ty::Float(_)
-            | ty::FnDef(..)
-            | ty::FnPtr(..)
-            | ty::RawPtr(..)
-            | ty::Char
-            | ty::Ref(..)
-            | ty::Coroutine(..)
-            | ty::CoroutineWitness(..)
-            | ty::Array(..)
-            | ty::Closure(..)
-            | ty::CoroutineClosure(..)
-            | ty::Never
-            | ty::Dynamic(_, _, ty::DynStar)
-            | ty::Error(_) => {
-                // safe for everything
-                Where(ty::Binder::dummy(Vec::new()))
-            }
-
-            ty::Str | ty::Slice(_) | ty::Dynamic(..) | ty::Foreign(..) => None,
-
-            ty::Tuple(tys) => Where(
-                obligation.predicate.rebind(tys.last().map_or_else(Vec::new, |&last| vec![last])),
-            ),
-
-            ty::Pat(ty, _) => Where(obligation.predicate.rebind(vec![*ty])),
-
-            ty::Adt(def, args) => {
-                if let Some(sized_crit) = def.sized_constraint(self.tcx()) {
-                    // (*) binder moved here
-                    Where(
-                        obligation.predicate.rebind(vec![sized_crit.instantiate(self.tcx(), args)]),
-                    )
-                } else {
-                    Where(ty::Binder::dummy(Vec::new()))
-                }
-            }
-
-            // FIXME(unsafe_binders): This binder needs to be squashed
-            ty::UnsafeBinder(binder_ty) => Where(binder_ty.map_bound(|ty| vec![ty])),
-
-            ty::Alias(..) | ty::Param(_) | ty::Placeholder(..) => None,
-            ty::Infer(ty::TyVar(_)) => Ambiguous,
-
-            // We can make this an ICE if/once we actually instantiate the trait obligation eagerly.
-            ty::Bound(..) => None,
-
-            ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)) => {
-                bug!("asked to assemble builtin bounds of unexpected type: {:?}", self_ty);
-            }
-        }
+    fn metasized_conditions(
+        &mut self,
+        obligation: &PolyTraitObligation<'tcx>,
+    ) -> BuiltinImplConditions<'tcx> {
+        sizedness_conditions(self, obligation, Sizedness::MetaSized)
     }
 
     fn copy_clone_conditions(
@@ -2837,6 +2786,80 @@ impl<'tcx> SelectionContext<'_, 'tcx> {
         }
 
         obligations
+    }
+}
+
+fn sizedness_conditions<'cx, 'tcx>(
+    ctx: &mut SelectionContext<'cx, 'tcx>,
+    obligation: &PolyTraitObligation<'tcx>,
+    sizedness: Sizedness,
+) -> BuiltinImplConditions<'tcx> {
+    use self::BuiltinImplConditions::{Ambiguous, None, Where};
+
+    // NOTE: binder moved to (*)
+    let self_ty = ctx.infcx.shallow_resolve(obligation.predicate.skip_binder().self_ty());
+
+    match self_ty.kind() {
+        ty::Infer(ty::IntVar(_) | ty::FloatVar(_))
+        | ty::Uint(_)
+        | ty::Int(_)
+        | ty::Bool
+        | ty::Float(_)
+        | ty::FnDef(..)
+        | ty::FnPtr(..)
+        | ty::RawPtr(..)
+        | ty::Char
+        | ty::Ref(..)
+        | ty::Coroutine(..)
+        | ty::CoroutineWitness(..)
+        | ty::Array(..)
+        | ty::Closure(..)
+        | ty::CoroutineClosure(..)
+        | ty::Never
+        | ty::Dynamic(_, _, ty::DynStar)
+        | ty::Error(_) => {
+            // safe for everything
+            Where(ty::Binder::dummy(Vec::new()))
+        }
+
+        ty::Str | ty::Slice(_) | ty::Dynamic(..) => match sizedness {
+            Sizedness::Sized => None,
+            Sizedness::MetaSized => Where(ty::Binder::dummy(Vec::new())),
+        },
+
+        ty::Foreign(..) => None,
+
+        ty::Tuple(tys) => {
+            Where(obligation.predicate.rebind(tys.last().map_or_else(Vec::new, |&last| vec![last])))
+        }
+
+        ty::Pat(ty, _) => Where(obligation.predicate.rebind(vec![*ty])),
+
+        ty::Adt(def, args) => {
+            let constraint = match sizedness {
+                Sizedness::Sized => def.sized_constraint(ctx.tcx()),
+                Sizedness::MetaSized => def.metasized_constraint(ctx.tcx()),
+            };
+            if let Some(crit) = constraint {
+                // (*) binder moved here
+                Where(obligation.predicate.rebind(vec![crit.instantiate(ctx.tcx(), args)]))
+            } else {
+                Where(ty::Binder::dummy(Vec::new()))
+            }
+        }
+
+        // FIXME(unsafe_binders): This binder needs to be squashed
+        ty::UnsafeBinder(binder_ty) => Where(binder_ty.map_bound(|ty| vec![ty])),
+
+        ty::Alias(..) | ty::Param(_) | ty::Placeholder(..) => None,
+        ty::Infer(ty::TyVar(_)) => Ambiguous,
+
+        // We can make this an ICE if/once we actually instantiate the trait obligation eagerly.
+        ty::Bound(..) => None,
+
+        ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)) => {
+            bug!("asked to assemble builtin bounds of unexpected type: {:?}", self_ty);
+        }
     }
 }
 

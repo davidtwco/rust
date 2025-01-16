@@ -254,7 +254,7 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
             let conditions = if tcx.is_lang_item(trait_def, LangItem::Sized) {
                 self.sized_conditions(obligation)
             } else if tcx.is_lang_item(trait_def, LangItem::MetaSized) {
-                self.sized_conditions(obligation)
+                self.metasized_conditions(obligation)
             } else if tcx.is_lang_item(trait_def, LangItem::Copy) {
                 self.copy_clone_conditions(obligation)
             } else if tcx.is_lang_item(trait_def, LangItem::Clone) {

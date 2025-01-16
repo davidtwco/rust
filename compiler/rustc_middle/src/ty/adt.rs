@@ -622,6 +622,15 @@ impl<'tcx> AdtDef<'tcx> {
     pub fn sized_constraint(self, tcx: TyCtxt<'tcx>) -> Option<ty::EarlyBinder<'tcx, Ty<'tcx>>> {
         if self.is_struct() { tcx.adt_sized_constraint(self.did()) } else { None }
     }
+
+    /// Returns a type such that `Self: MetaSized` if and only if that type is `MetaSized`,
+    /// or `None` if the type is always metasized.
+    pub fn metasized_constraint(
+        self,
+        tcx: TyCtxt<'tcx>,
+    ) -> Option<ty::EarlyBinder<'tcx, Ty<'tcx>>> {
+        if self.is_struct() { tcx.adt_metasized_constraint(self.did()) } else { None }
+    }
 }
 
 #[derive(Clone, Copy, Debug, HashStable)]
