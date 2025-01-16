@@ -22,7 +22,6 @@ use rustc_infer::infer::relate::TypeRelation;
 use rustc_infer::traits::{PredicateObligations, TraitObligation};
 use rustc_middle::bug;
 use rustc_middle::dep_graph::{DepNodeIndex, dep_kinds};
-use rustc_middle::traits::Sizedness;
 pub use rustc_middle::traits::select::*;
 use rustc_middle::ty::abstract_const::NotConstEvaluatable;
 use rustc_middle::ty::error::TypeErrorToStringExt;
@@ -34,6 +33,7 @@ use rustc_middle::ty::{
 };
 use rustc_span::{Symbol, sym};
 use rustc_type_ir::elaborate;
+use rustc_type_ir::solve::Sizedness;
 use tracing::{debug, instrument, trace};
 
 use self::EvaluationResult::*;

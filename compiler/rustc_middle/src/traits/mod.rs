@@ -417,15 +417,6 @@ pub enum ObligationCauseCode<'tcx> {
     TypeAlias(InternedObligationCauseCode<'tcx>, Span, DefId),
 }
 
-/// Which sizedness trait - `Sized` or `MetaSized`?
-#[derive(Copy, Clone, Debug)]
-pub enum Sizedness {
-    /// `Sized` trait
-    Sized,
-    /// `MetaSized` trait
-    MetaSized,
-}
-
 /// Whether a value can be extracted into a const.
 /// Used for diagnostics around array repeat expressions.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, HashStable, TyEncodable, TyDecodable)]

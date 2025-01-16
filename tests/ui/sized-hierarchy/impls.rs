@@ -1,6 +1,5 @@
 //@ check-fail
 //@ edition:2021
-//@ ignore-compare-mode-next-solver
 #![allow(incomplete_features, internal_features)]
 #![feature(sized_hierarchy)]
 #![feature(coroutines, dyn_star, extern_types, f16, never_type, unsized_fn_params)]

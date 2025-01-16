@@ -5,7 +5,7 @@ use rustc_type_ir::data_structures::IndexSet;
 use rustc_type_ir::fast_reject::DeepRejectCtxt;
 use rustc_type_ir::inherent::*;
 use rustc_type_ir::lang_items::TraitSolverLangItem;
-use rustc_type_ir::solve::CanonicalResponse;
+use rustc_type_ir::solve::{CanonicalResponse, Sizedness};
 use rustc_type_ir::visit::TypeVisitableExt as _;
 use rustc_type_ir::{self as ty, Interner, TraitPredicate, TypingMode, Upcast as _, elaborate};
 use tracing::{debug, instrument, trace};
@@ -216,9 +216,10 @@ where
         })
     }
 
-    fn consider_builtin_sized_candidate(
+    fn consider_builtin_sizedness_candidates(
         ecx: &mut EvalCtxt<'_, D>,
         goal: Goal<I, Self>,
+        sizedness: Sizedness,
     ) -> Result<Candidate<I>, NoSolution> {
         if goal.predicate.polarity != ty::PredicatePolarity::Positive {
             return Err(NoSolution);
@@ -227,22 +228,12 @@ where
         ecx.probe_and_evaluate_goal_for_constituent_tys(
             CandidateSource::BuiltinImpl(BuiltinImplSource::Trivial),
             goal,
-            structural_traits::instantiate_constituent_tys_for_sized_trait,
-        )
-    }
-
-    fn consider_builtin_metasized_candidate(
-        ecx: &mut EvalCtxt<'_, D>,
-        goal: Goal<I, Self>,
-    ) -> Result<Candidate<I>, NoSolution> {
-        if goal.predicate.polarity != ty::PredicatePolarity::Positive {
-            return Err(NoSolution);
-        }
-
-        ecx.probe_and_evaluate_goal_for_constituent_tys(
-            CandidateSource::BuiltinImpl(BuiltinImplSource::Misc),
-            goal,
-            structural_traits::instantiate_constituent_tys_for_sized_trait,
+            match sizedness {
+                Sizedness::Sized =>
+                    structural_traits::instantiate_constituent_tys_for_sized_trait,
+                Sizedness::MetaSized =>
+                    structural_traits::instantiate_constituent_tys_for_metasized_trait,
+            }
         )
     }
 

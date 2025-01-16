@@ -5,7 +5,6 @@ use rustc_hir::def::DefKind;
 use rustc_index::bit_set::DenseBitSet;
 use rustc_middle::bug;
 use rustc_middle::query::Providers;
-use rustc_middle::traits::Sizedness;
 use rustc_middle::ty::fold::fold_regions;
 use rustc_middle::ty::{
     self, EarlyBinder, Ty, TyCtxt, TypeSuperVisitable, TypeVisitable, TypeVisitor, Upcast,
@@ -13,6 +12,7 @@ use rustc_middle::ty::{
 use rustc_span::DUMMY_SP;
 use rustc_span::def_id::{CRATE_DEF_ID, DefId, LocalDefId};
 use rustc_trait_selection::traits;
+use rustc_type_ir::solve::Sizedness;
 use tracing::{debug, instrument};
 
 /// Returns `Some(ty)` if the type might not or does not implement the given `sizedness` trait

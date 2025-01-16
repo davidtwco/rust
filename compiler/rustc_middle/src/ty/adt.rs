@@ -230,6 +230,10 @@ impl<'tcx> rustc_type_ir::inherent::AdtDef<TyCtxt<'tcx>> for AdtDef<'tcx> {
         self.sized_constraint(tcx)
     }
 
+    fn metasized_constraint(self, tcx: TyCtxt<'tcx>) -> Option<ty::EarlyBinder<'tcx, Ty<'tcx>>> {
+        self.metasized_constraint(tcx)
+    }
+
     fn is_fundamental(self) -> bool {
         self.is_fundamental()
     }
