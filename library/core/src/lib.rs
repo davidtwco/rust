@@ -174,6 +174,7 @@
 #![feature(macro_metavar_expr)]
 #![feature(marker_trait_attr)]
 #![feature(min_specialization)]
+#![feature(more_maybe_bounds)] // `cfg(bootstrap)` for `sized_hierarchy`
 #![feature(multiple_supertrait_upcastable)]
 #![feature(must_not_suspend)]
 #![feature(negative_impls)]

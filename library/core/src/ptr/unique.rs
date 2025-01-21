@@ -1,5 +1,5 @@
 use crate::fmt;
-use crate::marker::{PhantomData, Unsize};
+use crate::marker::{MetaSized_, PhantomData, Unsize};
 use crate::ops::{CoerceUnsized, DispatchFromDyn};
 use crate::pin::PinCoerceUnsized;
 use crate::ptr::NonNull;
@@ -34,7 +34,7 @@ use crate::ptr::NonNull;
 #[repr(transparent)]
 // Lang item used experimentally by Miri to define the semantics of `Unique`.
 #[lang = "ptr_unique"]
-pub struct Unique<T: ?Sized> {
+pub struct Unique<T: ?Sized + ?MetaSized_> {
     pointer: NonNull<T>,
     // NOTE: this marker has no consequences for variance, but is necessary
     // for dropck to understand that we logically own a `T`.
@@ -49,14 +49,14 @@ pub struct Unique<T: ?Sized> {
 /// unenforced by the type system; the abstraction using the
 /// `Unique` must enforce it.
 #[unstable(feature = "ptr_internals", issue = "none")]
-unsafe impl<T: Send + ?Sized> Send for Unique<T> {}
+unsafe impl<T: Send + ?Sized + ?MetaSized_> Send for Unique<T> {}
 
 /// `Unique` pointers are `Sync` if `T` is `Sync` because the data they
 /// reference is unaliased. Note that this aliasing invariant is
 /// unenforced by the type system; the abstraction using the
 /// `Unique` must enforce it.
 #[unstable(feature = "ptr_internals", issue = "none")]
-unsafe impl<T: Sync + ?Sized> Sync for Unique<T> {}
+unsafe impl<T: Sync + ?Sized + ?MetaSized_> Sync for Unique<T> {}
 
 #[unstable(feature = "ptr_internals", issue = "none")]
 impl<T: Sized> Unique<T> {
@@ -78,7 +78,7 @@ impl<T: Sized> Unique<T> {
 }
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized> Unique<T> {
+impl<T: ?Sized + ?MetaSized_> Unique<T> {
     /// Creates a new `Unique`.
     ///
     /// # Safety
@@ -151,7 +151,7 @@ impl<T: ?Sized> Unique<T> {
 }
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized> Clone for Unique<T> {
+impl<T: ?Sized + ?MetaSized_> Clone for Unique<T> {
     #[inline]
     fn clone(&self) -> Self {
         *self
@@ -159,33 +159,39 @@ impl<T: ?Sized> Clone for Unique<T> {
 }
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized> Copy for Unique<T> {}
+impl<T: ?Sized + ?MetaSized_> Copy for Unique<T> {}
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized, U: ?Sized> CoerceUnsized<Unique<U>> for Unique<T> where T: Unsize<U> {}
+impl<T: ?Sized + ?MetaSized_, U: ?Sized + ?MetaSized_> CoerceUnsized<Unique<U>> for Unique<T> where
+    T: Unsize<U>
+{
+}
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized, U: ?Sized> DispatchFromDyn<Unique<U>> for Unique<T> where T: Unsize<U> {}
+impl<T: ?Sized + ?MetaSized_, U: ?Sized + ?MetaSized_> DispatchFromDyn<Unique<U>> for Unique<T> where
+    T: Unsize<U>
+{
+}
 
 #[unstable(feature = "pin_coerce_unsized_trait", issue = "123430")]
-unsafe impl<T: ?Sized> PinCoerceUnsized for Unique<T> {}
+unsafe impl<T: ?Sized + ?MetaSized_> PinCoerceUnsized for Unique<T> {}
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized> fmt::Debug for Unique<T> {
+impl<T: ?Sized + ?MetaSized_> fmt::Debug for Unique<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized> fmt::Pointer for Unique<T> {
+impl<T: ?Sized + ?MetaSized_> fmt::Pointer for Unique<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized> From<&mut T> for Unique<T> {
+impl<T: ?Sized + ?MetaSized_> From<&mut T> for Unique<T> {
     /// Converts a `&mut T` to a `Unique<T>`.
     ///
     /// This conversion is infallible since references cannot be null.
@@ -196,7 +202,7 @@ impl<T: ?Sized> From<&mut T> for Unique<T> {
 }
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized> From<NonNull<T>> for Unique<T> {
+impl<T: ?Sized + ?MetaSized_> From<NonNull<T>> for Unique<T> {
     /// Converts a `NonNull<T>` to a `Unique<T>`.
     ///
     /// This conversion is infallible since `NonNull` cannot be null.

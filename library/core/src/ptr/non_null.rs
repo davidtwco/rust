@@ -1,5 +1,5 @@
 use crate::cmp::Ordering;
-use crate::marker::Unsize;
+use crate::marker::{MetaSized_, Unsize};
 use crate::mem::{MaybeUninit, SizedTypeProperties};
 use crate::num::NonZero;
 use crate::ops::{CoerceUnsized, DispatchFromDyn};
@@ -68,7 +68,7 @@ use crate::{fmt, hash, intrinsics, mem, ptr};
 #[rustc_layout_scalar_valid_range_start(1)]
 #[rustc_nonnull_optimization_guaranteed]
 #[rustc_diagnostic_item = "NonNull"]
-pub struct NonNull<T: ?Sized> {
+pub struct NonNull<T: ?Sized + ?MetaSized_> {
     // Remember to use `.as_ptr()` instead of `.pointer`, as field projecting to
     // this is banned by <https://github.com/rust-lang/compiler-team/issues/807>.
     pointer: *const T,
@@ -77,12 +77,12 @@ pub struct NonNull<T: ?Sized> {
 /// `NonNull` pointers are not `Send` because the data they reference may be aliased.
 // N.B., this impl is unnecessary, but should provide better error messages.
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> !Send for NonNull<T> {}
+impl<T: ?Sized + ?MetaSized_> !Send for NonNull<T> {}
 
 /// `NonNull` pointers are not `Sync` because the data they reference may be aliased.
 // N.B., this impl is unnecessary, but should provide better error messages.
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> !Sync for NonNull<T> {}
+impl<T: ?Sized + ?MetaSized_> !Sync for NonNull<T> {}
 
 impl<T: Sized> NonNull<T> {
     /// Creates a pointer with the given address and no [provenance][crate::ptr#provenance].
@@ -190,7 +190,7 @@ impl<T: Sized> NonNull<T> {
     }
 }
 
-impl<T: ?Sized> NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> NonNull<T> {
     /// Creates a new `NonNull`.
     ///
     /// # Safety
@@ -1576,7 +1576,7 @@ impl<T> NonNull<[T]> {
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> Clone for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> Clone for NonNull<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
@@ -1584,39 +1584,45 @@ impl<T: ?Sized> Clone for NonNull<T> {
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> Copy for NonNull<T> {}
+impl<T: ?Sized + ?MetaSized_> Copy for NonNull<T> {}
 
 #[unstable(feature = "coerce_unsized", issue = "18598")]
-impl<T: ?Sized, U: ?Sized> CoerceUnsized<NonNull<U>> for NonNull<T> where T: Unsize<U> {}
+impl<T: ?Sized + ?MetaSized_, U: ?Sized + ?MetaSized_> CoerceUnsized<NonNull<U>> for NonNull<T> where
+    T: Unsize<U>
+{
+}
 
 #[unstable(feature = "dispatch_from_dyn", issue = "none")]
-impl<T: ?Sized, U: ?Sized> DispatchFromDyn<NonNull<U>> for NonNull<T> where T: Unsize<U> {}
+impl<T: ?Sized + ?MetaSized_, U: ?Sized + ?MetaSized_> DispatchFromDyn<NonNull<U>> for NonNull<T> where
+    T: Unsize<U>
+{
+}
 
 #[stable(feature = "pin", since = "1.33.0")]
-unsafe impl<T: ?Sized> PinCoerceUnsized for NonNull<T> {}
+unsafe impl<T: ?Sized + ?MetaSized_> PinCoerceUnsized for NonNull<T> {}
 
 #[unstable(feature = "pointer_like_trait", issue = "none")]
 impl<T> core::marker::PointerLike for NonNull<T> {}
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> fmt::Debug for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> fmt::Debug for NonNull<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> fmt::Pointer for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> fmt::Pointer for NonNull<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> Eq for NonNull<T> {}
+impl<T: ?Sized + ?MetaSized_> Eq for NonNull<T> {}
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> PartialEq for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> PartialEq for NonNull<T> {
     #[inline]
     #[allow(ambiguous_wide_pointer_comparisons)]
     fn eq(&self, other: &Self) -> bool {
@@ -1625,7 +1631,7 @@ impl<T: ?Sized> PartialEq for NonNull<T> {
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> Ord for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> Ord for NonNull<T> {
     #[inline]
     #[allow(ambiguous_wide_pointer_comparisons)]
     fn cmp(&self, other: &Self) -> Ordering {
@@ -1634,7 +1640,7 @@ impl<T: ?Sized> Ord for NonNull<T> {
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> PartialOrd for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> PartialOrd for NonNull<T> {
     #[inline]
     #[allow(ambiguous_wide_pointer_comparisons)]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -1643,7 +1649,7 @@ impl<T: ?Sized> PartialOrd for NonNull<T> {
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> hash::Hash for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> hash::Hash for NonNull<T> {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.as_ptr().hash(state)
@@ -1651,7 +1657,7 @@ impl<T: ?Sized> hash::Hash for NonNull<T> {
 }
 
 #[unstable(feature = "ptr_internals", issue = "none")]
-impl<T: ?Sized> From<Unique<T>> for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> From<Unique<T>> for NonNull<T> {
     #[inline]
     fn from(unique: Unique<T>) -> Self {
         unique.as_non_null_ptr()
@@ -1659,7 +1665,7 @@ impl<T: ?Sized> From<Unique<T>> for NonNull<T> {
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> From<&mut T> for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> From<&mut T> for NonNull<T> {
     /// Converts a `&mut T` to a `NonNull<T>`.
     ///
     /// This conversion is safe and infallible since references cannot be null.
@@ -1670,7 +1676,7 @@ impl<T: ?Sized> From<&mut T> for NonNull<T> {
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<T: ?Sized> From<&T> for NonNull<T> {
+impl<T: ?Sized + ?MetaSized_> From<&T> for NonNull<T> {
     /// Converts a `&T` to a `NonNull<T>`.
     ///
     /// This conversion is safe and infallible since references cannot be null.

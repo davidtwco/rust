@@ -396,7 +396,7 @@
 
 use crate::cmp::Ordering;
 use crate::intrinsics::const_eval_select;
-use crate::marker::FnPtr;
+use crate::marker::{FnPtr, MetaSized_};
 use crate::mem::{self, MaybeUninit, SizedTypeProperties};
 use crate::{fmt, hash, intrinsics, ub_checks};
 
@@ -520,7 +520,7 @@ mod mut_ptr;
 #[lang = "drop_in_place"]
 #[allow(unconditional_recursion)]
 #[rustc_diagnostic_item = "ptr_drop_in_place"]
-pub unsafe fn drop_in_place<T: ?Sized>(to_drop: *mut T) {
+pub unsafe fn drop_in_place<T: ?Sized + ?MetaSized_>(to_drop: *mut T) {
     // Code here does not matter - this is replaced by the
     // real drop glue by the compiler.
 
@@ -2071,7 +2071,7 @@ pub(crate) unsafe fn align_offset<T: Sized>(p: *const T, a: usize) -> usize {
 #[must_use = "pointer comparison produces a value"]
 #[rustc_diagnostic_item = "ptr_eq"]
 #[allow(ambiguous_wide_pointer_comparisons)] // it's actually clear here
-pub fn eq<T: ?Sized>(a: *const T, b: *const T) -> bool {
+pub fn eq<T: ?Sized + ?MetaSized_>(a: *const T, b: *const T) -> bool {
     a == b
 }
 
@@ -2095,7 +2095,7 @@ pub fn eq<T: ?Sized>(a: *const T, b: *const T) -> bool {
 #[stable(feature = "ptr_addr_eq", since = "1.76.0")]
 #[inline(always)]
 #[must_use = "pointer comparison produces a value"]
-pub fn addr_eq<T: ?Sized, U: ?Sized>(p: *const T, q: *const U) -> bool {
+pub fn addr_eq<T: ?Sized + ?MetaSized_, U: ?Sized + ?MetaSized_>(p: *const T, q: *const U) -> bool {
     (p as *const ()) == (q as *const ())
 }
 
@@ -2178,7 +2178,7 @@ pub fn fn_addr_eq<T: FnPtr, U: FnPtr>(f: T, g: U) -> bool {
 /// assert_eq!(actual, expected);
 /// ```
 #[stable(feature = "ptr_hash", since = "1.35.0")]
-pub fn hash<T: ?Sized, S: hash::Hasher>(hashee: *const T, into: &mut S) {
+pub fn hash<T: ?Sized + ?MetaSized_, S: hash::Hasher>(hashee: *const T, into: &mut S) {
     use crate::hash::Hash;
     hashee.hash(into);
 }

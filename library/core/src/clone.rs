@@ -327,6 +327,8 @@ unsafe impl CloneToUninit for crate::bstr::ByteStr {
 /// are implemented in `traits::SelectionContext::copy_clone_conditions()`
 /// in `rustc_trait_selection`.
 mod impls {
+    use crate::marker::MetaSized_;
+
     macro_rules! impl_clone {
         ($($t:ty)*) => {
             $(
@@ -357,7 +359,7 @@ mod impls {
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<T: ?Sized> Clone for *const T {
+    impl<T: ?Sized + ?MetaSized_> Clone for *const T {
         #[inline(always)]
         fn clone(&self) -> Self {
             *self
@@ -365,7 +367,7 @@ mod impls {
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<T: ?Sized> Clone for *mut T {
+    impl<T: ?Sized + ?MetaSized_> Clone for *mut T {
         #[inline(always)]
         fn clone(&self) -> Self {
             *self

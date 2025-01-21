@@ -33,8 +33,8 @@ pub trait Sized {}
 
 #[lang = "legacy_receiver"]
 pub trait LegacyReceiver {}
-impl<T: ?Sized> LegacyReceiver for &T {}
-impl<T: ?Sized> LegacyReceiver for &mut T {}
+impl<T: ?MetaSized> LegacyReceiver for &T {}
+impl<T: ?MetaSized> LegacyReceiver for &mut T {}
 
 #[lang = "copy"]
 pub trait Copy: Sized {}
@@ -48,13 +48,13 @@ impl_marker_trait!(
     ]
 );
 impl<'a, T: ?Sized> Copy for &'a T {}
-impl<T: ?Sized> Copy for *const T {}
-impl<T: ?Sized> Copy for *mut T {}
+impl<T: ?MetaSized> Copy for *const T {}
+impl<T: ?MetaSized> Copy for *mut T {}
 impl<T: Copy, const N: usize> Copy for [T; N] {}
 
 #[lang = "phantom_data"]
-pub struct PhantomData<T: ?Sized>;
-impl<T: ?Sized> Copy for PhantomData<T> {}
+pub struct PhantomData<T: ?MetaSized>;
+impl<T: ?MetaSized> Copy for PhantomData<T> {}
 
 pub enum Option<T> {
     None,

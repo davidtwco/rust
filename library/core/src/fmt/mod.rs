@@ -4,7 +4,7 @@
 
 use crate::cell::{Cell, Ref, RefCell, RefMut, SyncUnsafeCell, UnsafeCell};
 use crate::char::EscapeDebugExtArgs;
-use crate::marker::PhantomData;
+use crate::marker::{MetaSized_, PhantomData};
 use crate::num::fmt as numfmt;
 use crate::ops::Deref;
 use crate::{iter, mem, result, str};
@@ -2774,7 +2774,7 @@ impl Display for char {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Pointer for *const T {
+impl<T: ?Sized + ?MetaSized_> Pointer for *const T {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         pointer_fmt_inner(self.expose_provenance(), f)
     }
@@ -2814,7 +2814,7 @@ pub(crate) fn pointer_fmt_inner(ptr_addr: usize, f: &mut Formatter<'_>) -> Resul
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Pointer for *mut T {
+impl<T: ?Sized + ?MetaSized_> Pointer for *mut T {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Pointer::fmt(&(*self as *const T), f)
     }
@@ -2837,13 +2837,13 @@ impl<T: ?Sized> Pointer for &mut T {
 // Implementation of Display/Debug for various core types
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Debug for *const T {
+impl<T: ?Sized + ?MetaSized_> Debug for *const T {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Pointer::fmt(self, f)
     }
 }
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Debug for *mut T {
+impl<T: ?Sized + ?MetaSized_> Debug for *mut T {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Pointer::fmt(self, f)
     }

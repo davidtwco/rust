@@ -106,9 +106,9 @@ pub trait Tuple {}
 #[lang = "legacy_receiver"]
 pub trait LegacyReceiver {}
 
-impl<T: ?Sized> LegacyReceiver for &T {}
+impl<T: ?MetaSized> LegacyReceiver for &T {}
 
-impl<T: ?Sized> LegacyReceiver for &mut T {}
+impl<T: ?MetaSized> LegacyReceiver for &mut T {}
 
 #[lang = "receiver"]
 pub trait Receiver {

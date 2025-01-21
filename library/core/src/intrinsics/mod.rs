@@ -64,7 +64,7 @@
 )]
 #![allow(missing_docs)]
 
-use crate::marker::{DiscriminantKind, Tuple};
+use crate::marker::{DiscriminantKind, MetaSized_, Tuple};
 use crate::mem::SizedTypeProperties;
 use crate::{ptr, ub_checks};
 
@@ -4222,10 +4222,10 @@ pub const fn aggregate_raw_ptr<P: AggregateRawPtr<D, Metadata = M>, D, M>(_data:
 pub trait AggregateRawPtr<D> {
     type Metadata: Copy;
 }
-impl<P: ?Sized, T: ptr::Thin> AggregateRawPtr<*const T> for *const P {
+impl<P: ?Sized + ?MetaSized_, T: ptr::Thin> AggregateRawPtr<*const T> for *const P {
     type Metadata = <P as ptr::Pointee>::Metadata;
 }
-impl<P: ?Sized, T: ptr::Thin> AggregateRawPtr<*mut T> for *mut P {
+impl<P: ?Sized + ?MetaSized_, T: ptr::Thin> AggregateRawPtr<*mut T> for *mut P {
     type Metadata = <P as ptr::Pointee>::Metadata;
 }
 
@@ -4237,7 +4237,10 @@ impl<P: ?Sized, T: ptr::Thin> AggregateRawPtr<*mut T> for *mut P {
 #[rustc_intrinsic_const_stable_indirect]
 #[rustc_intrinsic]
 #[rustc_intrinsic_must_be_overridden]
-pub const fn ptr_metadata<P: ptr::Pointee<Metadata = M> + ?Sized, M>(_ptr: *const P) -> M {
+pub const fn ptr_metadata<P, M>(_ptr: *const P) -> M
+where
+    P: ptr::Pointee<Metadata = M> + ?Sized + ?MetaSized_,
+{
     // To implement a fallback we'd have to assume the layout of the pointer,
     // but the whole point of this intrinsic is that we shouldn't do that.
     unreachable!()

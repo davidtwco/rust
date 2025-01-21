@@ -3,7 +3,7 @@
 use crate::fmt;
 use crate::hash::{Hash, Hasher};
 use crate::intrinsics::{aggregate_raw_ptr, ptr_metadata};
-use crate::marker::Freeze;
+use crate::marker::{Freeze, MetaSized_};
 use crate::ptr::NonNull;
 
 /// Provides the pointer metadata type of any pointed-to type.
@@ -55,7 +55,7 @@ use crate::ptr::NonNull;
 #[lang = "pointee_trait"]
 #[rustc_deny_explicit_impl]
 #[rustc_do_not_implement_via_object]
-pub trait Pointee {
+pub trait Pointee: ?MetaSized_ {
     /// The type for metadata in pointers and references to `Self`.
     #[lang = "metadata_type"]
     // NOTE: Keep trait bounds in `static_assert_expected_bounds_for_metadata`
@@ -94,7 +94,7 @@ pub trait Thin = Pointee<Metadata = ()>;
 /// assert_eq!(std::ptr::metadata("foo"), 3_usize);
 /// ```
 #[inline]
-pub const fn metadata<T: ?Sized>(ptr: *const T) -> <T as Pointee>::Metadata {
+pub const fn metadata<T: ?Sized + ?MetaSized_>(ptr: *const T) -> <T as Pointee>::Metadata {
     ptr_metadata(ptr)
 }
 
@@ -107,7 +107,7 @@ pub const fn metadata<T: ?Sized>(ptr: *const T) -> <T as Pointee>::Metadata {
 /// [`slice::from_raw_parts`]: crate::slice::from_raw_parts
 #[unstable(feature = "ptr_metadata", issue = "81513")]
 #[inline]
-pub const fn from_raw_parts<T: ?Sized>(
+pub const fn from_raw_parts<T: ?Sized + ?MetaSized_>(
     data_pointer: *const impl Thin,
     metadata: <T as Pointee>::Metadata,
 ) -> *const T {
@@ -120,7 +120,7 @@ pub const fn from_raw_parts<T: ?Sized>(
 /// See the documentation of [`from_raw_parts`] for more details.
 #[unstable(feature = "ptr_metadata", issue = "81513")]
 #[inline]
-pub const fn from_raw_parts_mut<T: ?Sized>(
+pub const fn from_raw_parts_mut<T: ?Sized + ?MetaSized_>(
     data_pointer: *mut impl Thin,
     metadata: <T as Pointee>::Metadata,
 ) -> *mut T {

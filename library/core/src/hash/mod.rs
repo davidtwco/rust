@@ -957,7 +957,7 @@ mod impls {
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<T: ?Sized> Hash for *const T {
+    impl<T: ?Sized + ?marker::MetaSized_> Hash for *const T {
         #[inline]
         fn hash<H: Hasher>(&self, state: &mut H) {
             let (address, metadata) = self.to_raw_parts();
@@ -967,7 +967,7 @@ mod impls {
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<T: ?Sized> Hash for *mut T {
+    impl<T: ?Sized + ?marker::MetaSized_> Hash for *mut T {
         #[inline]
         fn hash<H: Hasher>(&self, state: &mut H) {
             let (address, metadata) = self.to_raw_parts();

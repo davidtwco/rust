@@ -92,15 +92,15 @@ pub unsafe auto trait Send {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> !Send for *const T {}
+impl<T: ?Sized + ?MetaSized_> !Send for *const T {}
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> !Send for *mut T {}
+impl<T: ?Sized + ?MetaSized_> !Send for *mut T {}
 
 // Most instances arise automatically, but this instance is needed to link up `T: Sync` with
 // `&T: Send` (and it also removes the unsound default instance `T Send` -> `&T: Send` that would
 // otherwise exist).
 #[stable(feature = "rust1", since = "1.0.0")]
-unsafe impl<T: Sync + ?Sized> Send for &T {}
+unsafe impl<T: Sync + ?Sized + ?MetaSized_> Send for &T {}
 
 /// Types with a constant size known at compile time.
 ///
@@ -211,6 +211,8 @@ pub trait Sized: MetaSized {
 }
 
 /// Types with a size that can be determined from pointer metadata.
+///
+/// `cfg(bootstrap)`: Use `MetaSized_` instead of this until the bootstrap compiler is updated.
 #[cfg(not(bootstrap))]
 #[unstable(feature = "sized_hierarchy", issue = "none")]
 #[lang = "metasized"]
@@ -226,6 +228,30 @@ pub trait Sized: MetaSized {
 pub trait MetaSized {
     // Empty
 }
+
+#[cfg(not(bootstrap))]
+#[unstable(feature = "sized_hierarchy", issue = "none")]
+/// Hack to avoid having to `cfg(bootstrap)` everywhere that needs to use `MetaSized`.
+///
+/// Needs to be used alongside `?Sized` bounds for bootstrap compiler as well as `more_maybe_bounds`
+/// feature so that there can be two relaxed bounds.
+///
+/// Once `cfg(bootstrap)` has been updated, to remove this:
+///
+/// 1. Change `rustc_hir_analysis::hir_ty_lowering::bounds` to add the `MetaSized` trait as a
+///    default bound, not this alias.
+/// 2. Change all explicit uses of this alias in core/alloc/std to `MetaSized`, remove any
+///    now unnecessary `?Sized` relaxations.
+/// 3. Remove the `more_maybe_bounds` feature gate from core/alloc/std.
+/// 4. Remove this alias and its accompanying language item/symbol.
+/// 5. Remove the alias from minicore tests.
+pub trait MetaSized_ = MetaSized;
+#[cfg(bootstrap)]
+#[unstable(feature = "sized_hierarchy", issue = "none")]
+/// Hack to avoid having to `cfg(bootstrap)` everywhere that needs to use `MetaSized`.
+///
+/// See other cfg'd defn of alias.
+pub trait MetaSized_ = Sized;
 
 /// Types that can be "unsized" to a dynamically-sized type.
 ///
@@ -263,7 +289,7 @@ pub trait MetaSized {
 #[lang = "unsize"]
 #[rustc_deny_explicit_impl]
 #[rustc_do_not_implement_via_object]
-pub trait Unsize<T: ?Sized> {
+pub trait Unsize<T: ?Sized + ?MetaSized_>: ?MetaSized_ {
     // Empty.
 }
 
@@ -513,8 +539,8 @@ marker_impls! {
         isize, i8, i16, i32, i64, i128,
         f16, f32, f64, f128,
         bool, char,
-        {T: ?Sized} *const T,
-        {T: ?Sized} *mut T,
+        {T: ?Sized + ?MetaSized_} *const T,
+        {T: ?Sized + ?MetaSized_} *mut T,
 
 }
 
@@ -826,57 +852,57 @@ impl<T: ?Sized> !Sync for *mut T {}
 /// [drop check]: Drop#drop-check
 #[lang = "phantom_data"]
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct PhantomData<T: ?Sized>;
+pub struct PhantomData<T: ?Sized + ?MetaSized_>;
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Hash for PhantomData<T> {
+impl<T: ?Sized + ?MetaSized_> Hash for PhantomData<T> {
     #[inline]
     fn hash<H: Hasher>(&self, _: &mut H) {}
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> cmp::PartialEq for PhantomData<T> {
+impl<T: ?Sized + ?MetaSized_> cmp::PartialEq for PhantomData<T> {
     fn eq(&self, _other: &PhantomData<T>) -> bool {
         true
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> cmp::Eq for PhantomData<T> {}
+impl<T: ?Sized + ?MetaSized_> cmp::Eq for PhantomData<T> {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> cmp::PartialOrd for PhantomData<T> {
+impl<T: ?Sized + ?MetaSized_> cmp::PartialOrd for PhantomData<T> {
     fn partial_cmp(&self, _other: &PhantomData<T>) -> Option<cmp::Ordering> {
         Option::Some(cmp::Ordering::Equal)
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> cmp::Ord for PhantomData<T> {
+impl<T: ?Sized + ?MetaSized_> cmp::Ord for PhantomData<T> {
     fn cmp(&self, _other: &PhantomData<T>) -> cmp::Ordering {
         cmp::Ordering::Equal
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Copy for PhantomData<T> {}
+impl<T: ?Sized + ?MetaSized_> Copy for PhantomData<T> {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Clone for PhantomData<T> {
+impl<T: ?Sized + ?MetaSized_> Clone for PhantomData<T> {
     fn clone(&self) -> Self {
         Self
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Default for PhantomData<T> {
+impl<T: ?Sized + ?MetaSized_> Default for PhantomData<T> {
     fn default() -> Self {
         Self
     }
 }
 
 #[unstable(feature = "structural_match", issue = "31434")]
-impl<T: ?Sized> StructuralPartialEq for PhantomData<T> {}
+impl<T: ?Sized + ?MetaSized_> StructuralPartialEq for PhantomData<T> {}
 
 /// Compiler-internal trait used to indicate the type of enum discriminants.
 ///
