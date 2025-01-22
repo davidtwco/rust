@@ -1,4 +1,5 @@
 // ignore-tidy-linelength
+//@ add-core-stubs
 //@ revisions:i686-linux x86_64-linux
 
 //@[i686-linux] compile-flags: --target i686-unknown-linux-gnu -C panic=abort
@@ -22,12 +23,8 @@
 #![no_core]
 #![allow(non_camel_case_types)]
 
-#[lang = "sized"]
-trait Sized {}
-#[lang = "freeze"]
-trait Freeze {}
-#[lang = "copy"]
-trait Copy {}
+extern crate minicore;
+use minicore::*;
 
 // This type has align 1 in Rust, but as a byval argument on i686-linux, it will have align 4.
 #[repr(C)]

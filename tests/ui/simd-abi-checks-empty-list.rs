@@ -1,3 +1,4 @@
+//@ add-core-stubs
 //@ needs-llvm-components: sparc
 //@ compile-flags: --target=sparc-unknown-none-elf --crate-type=rlib
 //@ build-pass
@@ -5,11 +6,9 @@
 #![no_core]
 #![feature(no_core, lang_items, repr_simd)]
 #![allow(improper_ctypes_definitions)]
-#[lang = "sized"]
-trait Sized {}
 
-#[lang = "copy"]
-trait Copy {}
+extern crate minicore;
+use minicore::*;
 
 #[repr(simd)]
 pub struct SimdVec([i32; 4]);

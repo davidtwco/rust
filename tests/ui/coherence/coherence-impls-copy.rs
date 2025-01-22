@@ -2,7 +2,7 @@
 
 use std::marker::Copy;
 
-impl Copy for i32 {}
+impl Copy for char {}
 //~^ ERROR E0117
 enum TestE {
   A

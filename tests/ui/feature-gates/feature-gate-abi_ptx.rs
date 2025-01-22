@@ -1,9 +1,11 @@
+//@ add-core-stubs
 //@ needs-llvm-components: nvptx
 //@ compile-flags: --target=nvptx64-nvidia-cuda --crate-type=rlib
 #![no_core]
 #![feature(no_core, lang_items)]
-#[lang="sized"]
-trait Sized { }
+
+extern crate minicore;
+use minicore::*;
 
 extern "ptx-kernel" fn fu() {} //~ ERROR PTX ABIs are experimental
 

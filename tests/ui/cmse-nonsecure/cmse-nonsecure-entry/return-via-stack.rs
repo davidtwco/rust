@@ -1,13 +1,11 @@
+//@ add-core-stubs
 //@ compile-flags: --target thumbv8m.main-none-eabi --crate-type lib
 //@ needs-llvm-components: arm
 #![feature(cmse_nonsecure_entry, no_core, lang_items)]
 #![no_core]
-#[lang = "sized"]
-pub trait Sized {}
-#[lang = "copy"]
-pub trait Copy {}
-impl Copy for u32 {}
-impl Copy for u8 {}
+
+extern crate minicore;
+use minicore::*;
 
 #[repr(C)]
 pub struct ReprCU64(u64);

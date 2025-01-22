@@ -1,3 +1,4 @@
+//@ add-core-stubs
 //@ normalize-stderr: "(abi|pref|unadjusted_abi_align): Align\([1-8] bytes\)" -> "$1: $$SOME_ALIGN"
 /*!
 C doesn't have zero-sized types... except it does.
@@ -56,8 +57,8 @@ extern "C" fn(i32, (), i32);
 #![no_core]
 #![crate_type = "lib"]
 
-#[lang = "sized"]
-trait Sized {}
+extern crate minicore;
+use minicore::*;
 
 #[rustc_abi(debug)]
 extern "C" fn pass_zst(_: ()) {} //~ ERROR: fn_abi

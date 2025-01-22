@@ -1,3 +1,4 @@
+//@ add-core-stubs
 //@ compile-flags: -Z merge-functions=disabled
 
 //@ revisions: windows-gnu
@@ -17,8 +18,8 @@
 #![no_core]
 #![crate_type = "lib"]
 
-#[lang = "sized"]
-trait Sized {}
+extern crate minicore;
+use minicore::*;
 
 // Make sure the argument is always passed when explicitly requesting a Windows ABI.
 // Our goal here is to match clang: <https://clang.godbolt.org/z/Wr4jMWq3P>.

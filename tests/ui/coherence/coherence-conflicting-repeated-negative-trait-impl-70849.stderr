@@ -6,7 +6,7 @@ LL | impl !Clone for &mut MyType {}
    |
    = note: conflicting implementation in crate `core`:
            - impl<T> !Clone for &mut T
-             where T: ?Sized;
+             where T: ?MetaSized;
 
 error: aborting due to 1 previous error
 

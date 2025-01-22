@@ -6,7 +6,7 @@ LL | impl Copy for &'static NotSync {}
    |
    = note: conflicting implementation in crate `core`:
            - impl<T> Copy for &T
-             where T: ?Sized;
+             where T: ?MetaSized;
 
 error[E0117]: only traits defined in the current crate can be implemented for arbitrary types
   --> $DIR/coherence-impls-copy.rs:33:1
@@ -23,10 +23,10 @@ LL | impl Copy for &'static [NotSync] {}
 error[E0117]: only traits defined in the current crate can be implemented for primitive types
   --> $DIR/coherence-impls-copy.rs:5:1
    |
-LL | impl Copy for i32 {}
-   | ^^^^^^^^^^^^^^---
+LL | impl Copy for char {}
+   | ^^^^^^^^^^^^^^----
    |               |
-   |               `i32` is not defined in the current crate
+   |               `char` is not defined in the current crate
    |
    = note: impl doesn't have any local type before any uncovered type parameters
    = note: for more information see https://doc.rust-lang.org/reference/items/implementations.html#orphan-rules

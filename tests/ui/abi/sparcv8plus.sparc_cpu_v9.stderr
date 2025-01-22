@@ -1,5 +1,13 @@
+<<<<<<< HEAD
 error: -v8plus,+v9
   --> $DIR/sparcv8plus.rs:42:1
+||||||| parent of 99fb06ca22e (tests: use minicore more)
+error: +v8plus,+v9
+  --> $DIR/sparcv8plus.rs:34:1
+=======
+error: +v8plus,+v9
+  --> $DIR/sparcv8plus.rs:33:1
+>>>>>>> 99fb06ca22e (tests: use minicore more)
    |
 LL | compile_error!("-v8plus,+v9");
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

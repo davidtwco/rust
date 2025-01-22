@@ -1,8 +1,9 @@
+//@ add-core-stubs
 #![feature(lang_items, no_core)]
 #![no_core] // makes debugging this test *a lot* easier (during resolve)
 
-#[lang = "sized"] pub trait Sized {}
-#[lang="copy"] pub trait Copy {}
+extern crate minicore;
+use minicore::*;
 
 // Test to make sure that private items imported through globs remain private
 // when  they're used.

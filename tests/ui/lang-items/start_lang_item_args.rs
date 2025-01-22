@@ -1,3 +1,4 @@
+//@ add-core-stubs
 //@ check-fail
 //@ revisions: missing_all_args missing_sigpipe_arg missing_ret start_ret too_many_args
 //@ revisions: main_ty main_args main_ret argc argv_inner_ptr argv sigpipe
@@ -5,10 +6,8 @@
 #![feature(lang_items, no_core)]
 #![no_core]
 
-#[lang = "copy"]
-pub trait Copy {}
-#[lang = "sized"]
-pub trait Sized {}
+extern crate minicore;
+use minicore::*;
 
 #[cfg(missing_all_args)]
 #[lang = "start"]

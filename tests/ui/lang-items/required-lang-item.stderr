@@ -1,5 +1,5 @@
 error: requires `ResumeTy` lang_item
-  --> $DIR/required-lang-item.rs:10:14
+  --> $DIR/required-lang-item.rs:11:14
    |
 LL | async fn x() {}
    |              ^^

@@ -1,25 +1,9 @@
+//@ add-core-stubs
 #![feature(lang_items, no_core)]
 #![no_core] // makes debugging this test *a lot* easier (during resolve)
 
-#[lang="sized"]
-pub trait Sized {}
-
-#[lang="copy"]
-pub trait Copy {}
-
-#[lang="deref"]
-pub trait Deref {
-    type Target;
-}
-
-#[lang="legacy_receiver"]
-pub trait LegacyReceiver: Deref {}
-
-impl<'a, T> Deref for &'a T {
-    type Target = T;
-}
-
-impl<'a, T> LegacyReceiver for &'a T {}
+extern crate minicore;
+use minicore::*;
 
 mod bar {
     // shouldn't bring in too much
