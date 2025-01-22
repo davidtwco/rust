@@ -37,6 +37,7 @@ use rustc_session::lint::{BuiltinLintDiag, LintBuffer};
 use rustc_span::{Ident, Span, kw, sym};
 use rustc_target::spec::abi;
 use thin_vec::thin_vec;
+use util::path::is_maybe_metasized_bound;
 
 use crate::errors::{self, TildeConstReason};
 
@@ -1241,7 +1242,8 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
             GenericBound::Trait(trait_ref) => {
                 match (ctxt, trait_ref.modifiers.constness, trait_ref.modifiers.polarity) {
                     (BoundKind::SuperTraits, BoundConstness::Never, BoundPolarity::Maybe(_))
-                        if !self.features.more_maybe_bounds() =>
+                        if !self.features.more_maybe_bounds()
+                            && !is_maybe_metasized_bound(bound) =>
                     {
                         self.sess
                             .create_feature_err(
