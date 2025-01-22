@@ -12,14 +12,23 @@
     fundamental,
     marker_trait_attr,
     const_trait_impl,
-    const_destruct
+    const_destruct,
 )]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![allow(internal_features, incomplete_features)]
 #![no_std]
 #![no_core]
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-pub trait Sized {}
+pub trait Sized: MetaSized {}
+
 #[lang = "copy"]
 pub trait Copy {}
 

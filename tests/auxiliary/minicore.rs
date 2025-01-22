@@ -16,6 +16,7 @@
 
 #![feature(no_core, lang_items, rustc_attrs, decl_macro, naked_functions, f16, f128)]
 #![feature(unboxed_closures)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![allow(unused, improper_ctypes_definitions, internal_features)]
 #![feature(asm_experimental_arch)]
 #![no_std]
@@ -29,8 +30,15 @@ macro_rules! impl_marker_trait {
     }
 }
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-pub trait Sized {}
+pub trait Sized: MetaSized {}
 
 #[lang = "legacy_receiver"]
 pub trait LegacyReceiver {}
