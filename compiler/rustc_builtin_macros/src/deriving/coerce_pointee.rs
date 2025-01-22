@@ -1,10 +1,10 @@
 use ast::HasAttrs;
 use ast::ptr::P;
 use rustc_ast::mut_visit::MutVisitor;
+use rustc_ast::util::path::{contains_maybe_sized_bound, is_maybe_sized_bound};
 use rustc_ast::visit::BoundKind;
 use rustc_ast::{
-    self as ast, GenericArg, GenericBound, GenericParamKind, ItemKind, MetaItem,
-    TraitBoundModifiers, VariantData, WherePredicate,
+    self as ast, GenericArg, GenericParamKind, ItemKind, MetaItem, VariantData, WherePredicate,
 };
 use rustc_attr_parsing as attr;
 use rustc_data_structures::flat_map_in_place::FlatMapInPlace;
@@ -298,40 +298,6 @@ fn contains_maybe_sized_bound_on_pointee(predicates: &[WherePredicate], pointee:
         }
     }
     false
-}
-
-fn is_maybe_sized_bound(bound: &GenericBound) -> bool {
-    if let GenericBound::Trait(trait_ref) = bound
-        && let TraitBoundModifiers { polarity: ast::BoundPolarity::Maybe(_), .. } =
-            trait_ref.modifiers
-        && is_sized_marker(&trait_ref.trait_ref.path)
-    {
-        true
-    } else {
-        false
-    }
-}
-
-fn contains_maybe_sized_bound(bounds: &[GenericBound]) -> bool {
-    bounds.iter().any(is_maybe_sized_bound)
-}
-
-fn path_segment_is_exact_match(path_segments: &[ast::PathSegment], syms: &[Symbol]) -> bool {
-    path_segments.iter().zip(syms).all(|(segment, &symbol)| segment.ident.name == symbol)
-}
-
-fn is_sized_marker(path: &ast::Path) -> bool {
-    const CORE_UNSIZE: [Symbol; 3] = [sym::core, sym::marker, sym::Sized];
-    const STD_UNSIZE: [Symbol; 3] = [sym::std, sym::marker, sym::Sized];
-    if path.segments.len() == 4 && path.is_global() {
-        path_segment_is_exact_match(&path.segments[1..], &CORE_UNSIZE)
-            || path_segment_is_exact_match(&path.segments[1..], &STD_UNSIZE)
-    } else if path.segments.len() == 3 {
-        path_segment_is_exact_match(&path.segments, &CORE_UNSIZE)
-            || path_segment_is_exact_match(&path.segments, &STD_UNSIZE)
-    } else {
-        *path == sym::Sized
-    }
 }
 
 struct TypeSubstitution<'a> {

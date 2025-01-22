@@ -28,6 +28,7 @@ pub mod util {
     pub mod comments;
     pub mod literal;
     pub mod parser;
+    pub mod path;
     pub mod unicode;
 }
 
