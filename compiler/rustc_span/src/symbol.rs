@@ -1257,6 +1257,7 @@ symbols! {
         meta,
         metadata_type,
         metasized,
+        metasized_alias,
         min_align_of,
         min_align_of_val,
         min_const_fn,

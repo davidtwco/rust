@@ -4,12 +4,12 @@ use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_errors::codes::*;
 use rustc_errors::struct_span_code_err;
 use rustc_hir as hir;
-use rustc_hir::HirId;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::{HirId, LangItem, PolyTraitRef};
 use rustc_middle::bug;
 use rustc_middle::ty::{self as ty, IsSuggestable, Ty, TyCtxt};
-use rustc_span::{ErrorGuaranteed, Ident, Span, Symbol, kw, sym};
+use rustc_span::{ErrorGuaranteed, Ident, Span, Symbol, kw};
 use rustc_trait_selection::traits;
 use rustc_type_ir::visit::{TypeSuperVisitable, TypeVisitable, TypeVisitableExt, TypeVisitor};
 use smallvec::SmallVec;
@@ -22,11 +22,128 @@ use crate::hir_ty_lowering::{
     AssocItemQSelf, FeedConstTy, HirTyLowerer, PredicateFilter, RegionInferReason,
 };
 
+#[derive(Debug, Default)]
+struct CollectedBound {
+    /// `Trait`
+    positive: bool,
+    /// `?Trait`
+    maybe: bool,
+    /// `!Trait`
+    negative: bool,
+}
+
+impl CollectedBound {
+    /// Returns `true` if any of `Trait`, `?Trait` or `!Trait` were encountered.
+    fn any(&self) -> bool {
+        self.positive || self.maybe || self.negative
+    }
+}
+
+#[derive(Debug)]
+struct CollectedSizednessBounds {
+    // Collected `Sized` bounds
+    sized: CollectedBound,
+    // Collected `MetaSized` bounds
+    metasized: CollectedBound,
+}
+
+fn collect_sizedness_bounds<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    hir_bounds: &'tcx [hir::GenericBound<'tcx>],
+    self_ty_where_predicates: Option<(LocalDefId, &'tcx [hir::WherePredicate<'tcx>])>,
+    span: Span,
+) -> (CollectedSizednessBounds, SmallVec<[&'tcx PolyTraitRef<'tcx>; 1]>) {
+    let sized_did = tcx.require_lang_item(LangItem::Sized, Some(span));
+    let mut sized = CollectedBound::default();
+
+    let metasized_did = tcx.require_lang_item(LangItem::MetaSized, Some(span));
+    // `cfg(bootstrap)`: remove next line when removing the trait alias
+    let metasized_alias_did = tcx.lang_items().metasized_trait_alias();
+    let mut metasized = CollectedBound::default();
+
+    let mut unbounds: SmallVec<[_; 1]> = SmallVec::new();
+    let mut search_bounds = |hir_bounds: &'tcx [hir::GenericBound<'tcx>]| {
+        for hir_bound in hir_bounds {
+            let hir::GenericBound::Trait(ptr) = hir_bound else {
+                continue;
+            };
+
+            if matches!(ptr.modifiers.polarity, hir::BoundPolarity::Maybe(_)) {
+                unbounds.push(ptr);
+            }
+
+            if ptr.trait_ref.path.res == Res::Def(DefKind::Trait, sized_did) {
+                match ptr.modifiers.polarity {
+                    hir::BoundPolarity::Maybe(_) => sized.maybe = true,
+                    hir::BoundPolarity::Negative(_) => sized.negative = true,
+                    hir::BoundPolarity::Positive => sized.positive = true,
+                }
+            }
+
+            if ptr.trait_ref.path.res == Res::Def(DefKind::Trait, metasized_did) {
+                match ptr.modifiers.polarity {
+                    hir::BoundPolarity::Maybe(_) => metasized.maybe = true,
+                    hir::BoundPolarity::Negative(_) => metasized.negative = true,
+                    hir::BoundPolarity::Positive => metasized.positive = true,
+                }
+            }
+
+            // `cfg(bootstrap)`: remove this block when removing the trait alias
+            if let Some(alias_did) = metasized_alias_did
+                && ptr.trait_ref.path.res == Res::Def(DefKind::TraitAlias, alias_did)
+            {
+                match ptr.modifiers.polarity {
+                    hir::BoundPolarity::Maybe(_) => metasized.maybe = true,
+                    hir::BoundPolarity::Negative(_) => metasized.negative = true,
+                    hir::BoundPolarity::Positive => metasized.positive = true,
+                }
+            }
+        }
+    };
+
+    search_bounds(hir_bounds);
+    if let Some((self_ty, where_clause)) = self_ty_where_predicates {
+        for clause in where_clause {
+            if let hir::WherePredicateKind::BoundPredicate(pred) = clause.kind
+                && pred.is_param_bound(self_ty.to_def_id())
+            {
+                search_bounds(pred.bounds);
+            }
+        }
+    }
+
+    (CollectedSizednessBounds { sized, metasized }, unbounds)
+}
+
 impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
-    /// Add a `Sized` bound to the `bounds` if appropriate.
+    /// Add a `MetaSized` bound to `bounds` (of a trait definition) if appropriate.
     ///
-    /// Doesn't add the bound if the HIR bounds contain any of `Sized`, `?Sized` or `!Sized`.
-    pub(crate) fn add_sized_bound(
+    /// Doesn't add the bound if the HIR bounds contain any of `Sized`, `?Sized`, `!Sized`,
+    /// `MetaSized`, `?MetaSized` or `!MetaSized` as appropriate.
+    pub(crate) fn add_sizedness_bound_to_trait(
+        &self,
+        bounds: &mut Bounds<'tcx>,
+        self_ty: Ty<'tcx>,
+        hir_bounds: &'tcx [hir::GenericBound<'tcx>],
+        span: Span,
+    ) {
+        let tcx = self.tcx();
+        let (collected, _unbounds) = collect_sizedness_bounds(tcx, hir_bounds, None, span);
+        debug!(?collected, "trait");
+
+        if !collected.sized.any() && !collected.metasized.any() {
+            // If there are no explicit `Sized`, `?Sized` or `!Sized` bounds and no explicit
+            // `MetaSized`, `?MetaSized` or `!MetaSized` bounds then add a default `MetaSized`
+            // supertrait.
+            bounds.push_metasized(tcx, self_ty, span);
+        }
+    }
+
+    /// Add a `Sized` or `MetaSized` bound to `bounds` (of a parameter) if appropriate.
+    ///
+    /// Doesn't add the bound if the HIR bounds contain any of `Sized`, `?Sized`, `!Sized`,
+    /// `MetaSized`, `?MetaSized` or `!MetaSized` as appropriate.
+    pub(crate) fn add_sizedness_bound_to_param(
         &self,
         bounds: &mut Bounds<'tcx>,
         self_ty: Ty<'tcx>,
@@ -35,88 +152,19 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         span: Span,
     ) {
         let tcx = self.tcx();
-        let sized_def_id = tcx.lang_items().sized_trait();
-        let mut seen_negative_sized_bound = false;
-        let mut seen_positive_sized_bound = false;
+        let (collected, unbounds) =
+            collect_sizedness_bounds(tcx, hir_bounds, self_ty_where_predicates, span);
+        debug!(?collected, "params");
+        self.check_and_report_invalid_unbounds_on_param(unbounds);
 
-        // Try to find an unbound in bounds.
-        let mut unbounds: SmallVec<[_; 1]> = SmallVec::new();
-        let mut search_bounds = |hir_bounds: &'tcx [hir::GenericBound<'tcx>]| {
-            for hir_bound in hir_bounds {
-                let hir::GenericBound::Trait(ptr) = hir_bound else {
-                    continue;
-                };
-                match ptr.modifiers.polarity {
-                    hir::BoundPolarity::Maybe(_) => unbounds.push(ptr),
-                    hir::BoundPolarity::Negative(_) => {
-                        if let Some(sized_def_id) = sized_def_id
-                            && ptr.trait_ref.path.res == Res::Def(DefKind::Trait, sized_def_id)
-                        {
-                            seen_negative_sized_bound = true;
-                        }
-                    }
-                    hir::BoundPolarity::Positive => {
-                        if let Some(sized_def_id) = sized_def_id
-                            && ptr.trait_ref.path.res == Res::Def(DefKind::Trait, sized_def_id)
-                        {
-                            seen_positive_sized_bound = true;
-                        }
-                    }
-                }
-            }
-        };
-        search_bounds(hir_bounds);
-        if let Some((self_ty, where_clause)) = self_ty_where_predicates {
-            for clause in where_clause {
-                if let hir::WherePredicateKind::BoundPredicate(pred) = clause.kind
-                    && pred.is_param_bound(self_ty.to_def_id())
-                {
-                    search_bounds(pred.bounds);
-                }
-            }
-        }
-
-        let mut unique_bounds = FxIndexSet::default();
-        let mut seen_repeat = false;
-        for unbound in &unbounds {
-            if let Res::Def(DefKind::Trait, unbound_def_id) = unbound.trait_ref.path.res {
-                seen_repeat |= !unique_bounds.insert(unbound_def_id);
-            }
-        }
-        if unbounds.len() > 1 {
-            let err = errors::MultipleRelaxedDefaultBounds {
-                spans: unbounds.iter().map(|ptr| ptr.span).collect(),
-            };
-            if seen_repeat {
-                self.dcx().emit_err(err);
-            } else if !tcx.features().more_maybe_bounds() {
-                self.tcx().sess.create_feature_err(err, sym::more_maybe_bounds).emit();
-            };
-        }
-
-        let mut seen_sized_unbound = false;
-        for unbound in unbounds {
-            if let Some(sized_def_id) = sized_def_id
-                && unbound.trait_ref.path.res == Res::Def(DefKind::Trait, sized_def_id)
-            {
-                seen_sized_unbound = true;
-                continue;
-            }
-            // There was a `?Trait` bound, but it was not `?Sized`; warn.
-            self.dcx().span_warn(
-                unbound.span,
-                "relaxing a default bound only does something for `?Sized`; \
-                all other traits are not bound by default",
-            );
-        }
-
-        if seen_sized_unbound || seen_negative_sized_bound || seen_positive_sized_bound {
-            // There was in fact a `?Sized`, `!Sized` or explicit `Sized` bound;
-            // we don't need to do anything.
-        } else if sized_def_id.is_some() {
-            // There was no `?Sized`, `!Sized` or explicit `Sized` bound;
-            // add `Sized` if it's available.
+        if !collected.sized.any() && !(collected.metasized.negative || collected.metasized.maybe) {
+            // If there are no explicit `Sized`, `?Sized` or `!Sized` bounds and there isn't a
+            // `?MetaSized` or `!MetaSized` bound then add the default `Sized` bound.
             bounds.push_sized(tcx, self_ty, span);
+        } else if !collected.sized.positive && !collected.metasized.any() {
+            // If there are no explicit `Sized` bounds or there is an explicit `?Sized` or `!Sized`
+            // bound, and no explicit `MetaSized` bounds, then add a `MetaSized` bound.
+            bounds.push_metasized(tcx, self_ty, span);
         }
     }
 

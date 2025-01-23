@@ -163,9 +163,11 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
                         .map(|t| ty::Binder::dummy(t.instantiate_identity()));
                 }
             }
-
-            ItemKind::Trait(_, _, _, self_bounds, ..) | ItemKind::TraitAlias(_, self_bounds) => {
-                is_trait = Some(self_bounds);
+            ItemKind::Trait(is_auto, _, _, self_bounds, ..) => {
+                is_trait = Some((is_auto, self_bounds));
+            }
+            ItemKind::TraitAlias(_, self_bounds) => {
+                is_trait = Some((IsAuto::No, self_bounds));
             }
             _ => {}
         }
@@ -177,7 +179,7 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
     // and the explicit where-clauses, but to get the full set of predicates
     // on a trait we must also consider the bounds that follow the trait's name,
     // like `trait Foo: A + B + C`.
-    if let Some(self_bounds) = is_trait {
+    if let Some((is_auto, self_bounds)) = is_trait {
         let mut bounds = Bounds::default();
         icx.lowerer().lower_bounds(
             tcx.types.self_param,
@@ -186,6 +188,16 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
             ty::List::empty(),
             PredicateFilter::All,
         );
+        // Don't add default supertraits to auto traits as it is not permitted to explicitly
+        // relax it in the source code.
+        if is_auto == IsAuto::No {
+            icx.lowerer().add_sizedness_bound_to_trait(
+                &mut bounds,
+                tcx.types.self_param,
+                self_bounds,
+                tcx.def_span(def_id),
+            );
+        }
         predicates.extend(bounds.clauses());
     }
 
@@ -211,7 +223,7 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
                 let param_ty = icx.lowerer().lower_ty_param(param.hir_id);
                 let mut bounds = Bounds::default();
                 // Params are implicitly sized unless a `?Sized` bound is found
-                icx.lowerer().add_sized_bound(
+                icx.lowerer().add_sizedness_bound_to_param(
                     &mut bounds,
                     param_ty,
                     &[],

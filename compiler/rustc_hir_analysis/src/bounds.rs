@@ -4,6 +4,7 @@
 use rustc_hir::LangItem;
 use rustc_middle::ty::{self, Ty, TyCtxt, Upcast};
 use rustc_span::Span;
+use tracing::instrument;
 
 /// Collects together a list of type bounds. These lists of bounds occur in many places
 /// in Rust's syntax:
@@ -72,10 +73,27 @@ impl<'tcx> Bounds<'tcx> {
         ));
     }
 
+    #[instrument(level = "debug", skip(self, tcx))]
     pub(crate) fn push_sized(&mut self, tcx: TyCtxt<'tcx>, ty: Ty<'tcx>, span: Span) {
-        let sized_def_id = tcx.require_lang_item(LangItem::Sized, Some(span));
+        self.push_lang_item_bound(tcx, LangItem::Sized, ty, span)
+    }
+
+    #[instrument(level = "debug", skip(self, tcx))]
+    pub(crate) fn push_metasized(&mut self, tcx: TyCtxt<'tcx>, ty: Ty<'tcx>, span: Span) {
+        self.push_lang_item_bound(tcx, LangItem::MetaSized, ty, span)
+    }
+
+    fn push_lang_item_bound(
+        &mut self,
+        tcx: TyCtxt<'tcx>,
+        lang_item: LangItem,
+        ty: Ty<'tcx>,
+        span: Span,
+    ) {
+        let sized_def_id = tcx.require_lang_item(lang_item, Some(span));
         let trait_ref = ty::TraitRef::new(tcx, sized_def_id, [ty]);
-        // Preferable to put this obligation first, since we report better errors for sized ambiguity.
+        // Preferable to put this obligation first, since we report better errors for sizedness
+        // ambiguity.
         self.clauses.insert(0, (trait_ref.upcast(tcx), span));
     }
 

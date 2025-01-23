@@ -201,7 +201,9 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                 // avoid inundating the user with unnecessary errors, but we now
                 // check upstream for type errors and don't add the obligations to
                 // begin with in those cases.
-                if self.tcx.is_lang_item(trait_pred.def_id(), LangItem::Sized) {
+                if self.tcx.is_lang_item(trait_pred.def_id(), LangItem::Sized)
+                    || self.tcx.is_lang_item(trait_pred.def_id(), LangItem::MetaSized)
+                {
                     match self.tainted_by_errors() {
                         None => {
                             let err = self.emit_inference_failure_err(

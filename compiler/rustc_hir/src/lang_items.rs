@@ -166,6 +166,9 @@ language_item_table! {
 //  Variant name,            Name,                     Getter method name,         Target                  Generic requirements;
     Sized,                   sym::sized,               sized_trait,                Target::Trait,          GenericRequirement::Exact(0);
     MetaSized,               sym::metasized,           metasized_trait,            Target::Trait,          GenericRequirement::Exact(0);
+    /// Hack to avoid having to `cfg(bootstrap)` everywhere that needs to use `MetaSized`.
+    /// Never use with `require_lang_item` so this can be removed even once a compiler that knows about it is the bootstrap compiler.
+    MetaSized_,              sym::metasized_alias,     metasized_trait_alias,      Target::TraitAlias,     GenericRequirement::Exact(0);
     Unsize,                  sym::unsize,              unsize_trait,               Target::Trait,          GenericRequirement::Minimum(1);
     /// Trait injected by `#[derive(PartialEq)]`, (i.e. "Partial EQ").
     StructuralPeq,           sym::structural_peq,      structural_peq_trait,       Target::Trait,          GenericRequirement::None;

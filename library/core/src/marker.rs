@@ -231,6 +231,7 @@ pub trait MetaSized {
 
 #[cfg(not(bootstrap))]
 #[unstable(feature = "sized_hierarchy", issue = "none")]
+#[lang = "metasized_alias"]
 /// Hack to avoid having to `cfg(bootstrap)` everywhere that needs to use `MetaSized`.
 ///
 /// Needs to be used alongside `?Sized` bounds for bootstrap compiler as well as `more_maybe_bounds`
