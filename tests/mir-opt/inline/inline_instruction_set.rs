@@ -9,6 +9,7 @@
 #![feature(rustc_attrs)]
 #![feature(no_core, lang_items)]
 #![feature(isa_attribute)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: remove when removing `MetaSized_`
 #![no_core]
 
 #[rustc_builtin_macro]
@@ -22,8 +23,15 @@ macro_rules! asm {
     };
 }
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-trait Sized {}
+pub trait Sized: MetaSized {}
 #[lang = "copy"]
 trait Copy {}
 

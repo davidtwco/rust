@@ -2,10 +2,18 @@
 // crashing (issue #83474, #83893, #87573, part of #9307, #79559).
 
 #![feature(lang_items, no_core)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![no_core]
 
+#[lang = "metasized"]
+pub trait MyMetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MyMetaSized_ = MyMetaSized;
+
 #[lang = "sized"]
-trait MySized {}
+trait MySized: MyMetaSized {}
 
 #[lang = "add"]
 trait MyAdd<'a, T> {}

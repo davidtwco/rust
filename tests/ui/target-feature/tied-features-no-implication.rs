@@ -6,10 +6,18 @@
 //@[pacg] compile-flags: -Ctarget-feature=+pacg
 //@[pacg] error-pattern: the name `foo` is defined multiple times
 #![feature(no_core, lang_items)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![no_core]
 
-#[lang="sized"]
-trait Sized {}
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
+#[lang = "sized"]
+pub trait Sized: MetaSized {}
 
 // Can't use `compile_error!` here without `core`/`std` but requiring these makes this test only
 // work if you have libcore built in the sysroot for `aarch64-unknown-linux-gnu`. Can't run this

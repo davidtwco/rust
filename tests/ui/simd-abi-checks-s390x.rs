@@ -9,13 +9,20 @@
 //@[z13_soft_float] needs-llvm-components: systemz
 
 #![feature(no_core, lang_items, repr_simd, s390x_target_feature)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![no_core]
 #![crate_type = "lib"]
 #![allow(non_camel_case_types, improper_ctypes_definitions)]
 #![deny(abi_unsupported_vector_types)]
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
 #[lang = "sized"]
-pub trait Sized {}
+pub trait Sized: MetaSized {}
 #[lang = "copy"]
 pub trait Copy {}
 #[lang = "freeze"]

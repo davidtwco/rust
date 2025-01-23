@@ -2,8 +2,16 @@
 //@ compile-flags: --target=x86_64-unknown-linux-gnu --crate-type=rlib -Cno-prepopulate-passes
 #![no_core]
 #![feature(no_core, lang_items)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: remove when removing `MetaSized_`
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-trait Sized {}
+pub trait Sized: MetaSized {}
 
 // Test that `nounwind` attributes are correctly applied to exported `sysv64` and
 // `sysv64-unwind` extern functions. `sysv64-unwind` functions MUST NOT have this attribute. We

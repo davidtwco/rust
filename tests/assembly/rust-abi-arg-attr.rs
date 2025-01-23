@@ -13,12 +13,17 @@
 #![crate_type = "lib"]
 #![no_std]
 #![no_core]
-
 // FIXME: Migrate these code after PR #130693 is landed.
-// vvvvv core
+#![feature(trait_alias)] // `cfg(bootstrap)`: remove when removing `MetaSized_`
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
 
 #[lang = "sized"]
-trait Sized {}
+pub trait Sized: MetaSized {}
 
 #[lang = "copy"]
 trait Copy {}

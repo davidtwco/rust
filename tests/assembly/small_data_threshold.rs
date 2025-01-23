@@ -18,9 +18,17 @@
 #![no_std]
 #![no_core]
 #![crate_type = "lib"]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
+
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
 
 #[lang = "sized"]
-trait Sized {}
+pub trait Sized: MetaSized {}
 
 #[lang = "drop_in_place"]
 fn drop_in_place<T>(_: *mut T) {}

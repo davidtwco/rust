@@ -1,11 +1,19 @@
 #![feature(lang_items, no_core, auto_traits)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![no_core]
 
 #[lang = "copy"]
 trait Copy {}
 
+#[lang = "metasized"]
+trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-trait Sized {}
+trait Sized: MetaSized {}
 
 #[lang = "freeze"]
 auto trait Freeze {}

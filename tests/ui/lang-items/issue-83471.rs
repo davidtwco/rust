@@ -2,11 +2,21 @@
 
 #![crate_type="lib"]
 #![feature(no_core)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![no_core]
+
+#[lang = "metasized"]
+//~^ ERROR: lang items are subject to change [E0658]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+//~^ ERROR: lang items are subject to change [E0658]
+pub trait MetaSized_ = MetaSized;
 
 #[lang = "sized"]
 //~^ ERROR: lang items are subject to change [E0658]
-trait Sized {}
+trait Sized: MetaSized {}
 
 #[lang = "fn"]
 //~^ ERROR: lang items are subject to change [E0658]

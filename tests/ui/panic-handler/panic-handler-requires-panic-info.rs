@@ -2,6 +2,7 @@
 
 #![feature(lang_items)]
 #![feature(no_core)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![no_core]
 #![no_main]
 
@@ -11,5 +12,12 @@ fn panic() -> ! {
     loop {}
 }
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-trait Sized {}
+trait Sized: MetaSized {}

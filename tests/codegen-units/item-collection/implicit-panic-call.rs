@@ -5,6 +5,7 @@
 
 #![feature(lang_items)]
 #![feature(no_core)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: remove when removing `MetaSized_`
 #![crate_type = "lib"]
 #![no_core]
 #![no_std]
@@ -30,8 +31,15 @@ fn panic_div_overflow() -> ! {
     loop {}
 }
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-trait Sized {}
+pub trait Sized: MetaSized {}
 
 #[lang = "copy"]
 trait Copy {}

@@ -2,13 +2,21 @@
 // for lang items doesn't cause ICE.
 
 #![feature(no_core, lang_items)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![no_core]
 #![crate_type = "lib"]
 
 pub static STATIC_BOOL: bool = true;
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-trait Sized {}
+trait Sized: MetaSized {}
 
 #[lang = "copy"]
 trait Copy {}

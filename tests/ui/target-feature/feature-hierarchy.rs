@@ -7,15 +7,25 @@
 #![no_core]
 #![crate_type = "rlib"]
 #![feature(intrinsics, rustc_attrs, no_core, lang_items, staged_api)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: Remove this once `MetaSized_` has been removed
 #![stable(feature = "test", since = "1.0.0")]
 
 // Tests vetting "feature hierarchies" in the cases where we impose them.
 
 // Supporting minimal rust core code
+#[lang = "metasized"]
+trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-trait Sized {}
+trait Sized: MetaSized {}
+
 #[lang = "copy"]
 trait Copy {}
+
 impl Copy for bool {}
 
 #[stable(feature = "test", since = "1.0.0")]

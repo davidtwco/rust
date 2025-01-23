@@ -1,5 +1,5 @@
 error: requires `panic_info` lang_item
-  --> $DIR/panic-handler-requires-panic-info.rs:9:1
+  --> $DIR/panic-handler-requires-panic-info.rs:10:1
    |
 LL | fn panic() -> ! {
    | ^^^^^^^^^^^^^^^

@@ -5,6 +5,7 @@
 #![feature(no_core, auto_traits)]
 #![no_core]
 #![feature(repr_simd, simd_ffi, link_llvm_intrinsics, lang_items, rustc_attrs)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: remove when removing `MetaSized_`
 
 #[derive(Copy)]
 #[repr(simd)]
@@ -52,8 +53,15 @@ pub fn bar(a: i32x4, b: i32x4) -> i32x4 {
     unsafe { integer(a, b) }
 }
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-pub trait Sized {}
+pub trait Sized: MetaSized {}
 
 #[lang = "copy"]
 pub trait Copy {}

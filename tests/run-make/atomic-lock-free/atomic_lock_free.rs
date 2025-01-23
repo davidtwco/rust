@@ -1,4 +1,5 @@
 #![feature(no_core, intrinsics, lang_items)]
+#![feature(trait_alias)] // `cfg(bootstrap)`: remove when removing `MetaSized_`
 #![crate_type = "rlib"]
 #![no_core]
 
@@ -6,8 +7,15 @@ extern "rust-intrinsic" {
     fn atomic_xadd_seqcst<T>(dst: *mut T, src: T) -> T;
 }
 
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
+
 #[lang = "sized"]
-trait Sized {}
+pub trait Sized: MetaSized {}
 #[lang = "copy"]
 trait Copy {}
 #[lang = "freeze"]

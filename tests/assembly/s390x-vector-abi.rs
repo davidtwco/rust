@@ -15,12 +15,18 @@
 #![no_core]
 #![crate_type = "lib"]
 #![allow(non_camel_case_types)]
-
 // Cases where vector feature is disabled are rejected.
 // See tests/ui/simd-abi-checks-s390x.rs for test for them.
+#![feature(trait_alias)] // `cfg(bootstrap)`: remove when removing `MetaSized_`
+#[lang = "metasized"]
+pub trait MetaSized {}
+
+// `cfg(bootstrap)`: Remove this once the real `MetaSized_` has been removed
+#[lang = "metasized_alias"]
+pub trait MetaSized_ = MetaSized;
 
 #[lang = "sized"]
-pub trait Sized {}
+pub trait Sized: MetaSized {}
 #[lang = "copy"]
 pub trait Copy {}
 #[lang = "freeze"]
