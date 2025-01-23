@@ -665,9 +665,14 @@ fn receiver_is_dispatchable<'tcx>(
 ) -> bool {
     debug!("receiver_is_dispatchable: method = {:?}, receiver_ty = {:?}", method, receiver_ty);
 
-    let traits = (tcx.lang_items().unsize_trait(), tcx.lang_items().dispatch_from_dyn_trait());
-    let (Some(unsize_did), Some(dispatch_from_dyn_did)) = traits else {
-        debug!("receiver_is_dispatchable: Missing Unsize or DispatchFromDyn traits");
+    let (Some(unsize_did), Some(dispatch_from_dyn_did), Some(metasized_did)) = (
+        tcx.lang_items().unsize_trait(),
+        tcx.lang_items().dispatch_from_dyn_trait(),
+        tcx.lang_items().metasized_trait(),
+    ) else {
+        debug!(
+            "receiver_is_dispatchable: Missing `Unsize`, `DispatchFromDyn` or `MetaSized` traits"
+        );
         return false;
     };
 
@@ -683,7 +688,7 @@ fn receiver_is_dispatchable<'tcx>(
         receiver_for_self_ty(tcx, receiver_ty, unsized_self_ty, method.def_id);
 
     // create a modified param env, with `Self: Unsize<U>` and `U: Trait` added to caller bounds
-    // `U: ?Sized` is already implied here
+    // `U: MetaSized` is already implied here
     let param_env = {
         let param_env = tcx.param_env(method.def_id);
 
@@ -701,8 +706,14 @@ fn receiver_is_dispatchable<'tcx>(
             ty::TraitRef::new_from_args(tcx, trait_def_id, args).upcast(tcx)
         };
 
-        let caller_bounds =
-            param_env.caller_bounds().iter().chain([unsize_predicate, trait_predicate]);
+        let metasized_predicate =
+            ty::TraitRef::new(tcx, metasized_did, [unsized_self_ty]).upcast(tcx);
+
+        let caller_bounds = param_env.caller_bounds().iter().chain([
+            unsize_predicate,
+            metasized_predicate,
+            trait_predicate,
+        ]);
 
         ty::ParamEnv::new(tcx.mk_clauses_from_iter(caller_bounds))
     };
