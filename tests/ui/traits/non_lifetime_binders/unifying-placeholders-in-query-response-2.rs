@@ -3,19 +3,22 @@
 //@[next] compile-flags: -Znext-solver
 //@ check-pass
 
+#![feature(sized_hierarchy)]
 #![feature(non_lifetime_binders)]
 //~^ WARN the feature `non_lifetime_binders` is incomplete
 
-trait Id {
-    type Output: ?Sized;
+use std::marker::MetaSized;
+
+trait Id: ?MetaSized {
+    type Output: ?MetaSized;
 }
 
-impl<T: ?Sized> Id for T {
+impl<T: ?MetaSized> Id for T {
     type Output = T;
 }
 
-trait Everyone {}
-impl<T: ?Sized> Everyone for T {}
+trait Everyone: ?MetaSized {}
+impl<T: ?MetaSized> Everyone for T {}
 
 fn hello() where for<T> <T as Id>::Output: Everyone {}
 

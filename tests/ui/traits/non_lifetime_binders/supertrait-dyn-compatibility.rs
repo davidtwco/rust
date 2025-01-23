@@ -1,19 +1,22 @@
+#![feature(sized_hierarchy)]
 #![feature(non_lifetime_binders)]
 //~^ WARN the feature `non_lifetime_binders` is incomplete
 
-trait Foo: for<T> Bar<T> {}
+use std::marker::MetaSized;
 
-trait Bar<T: ?Sized> {
+trait Foo: for<T> Bar<T> + ?MetaSized {}
+
+trait Bar<T: ?MetaSized>: ?MetaSized {
     fn method(&self) {}
 }
 
-fn needs_bar(x: &(impl Bar<i32> + ?Sized)) {
+fn needs_bar(x: &(impl Bar<i32> + ?MetaSized)) {
     x.method();
 }
 
 impl Foo for () {}
 
-impl<T: ?Sized> Bar<T> for () {}
+impl<T: ?MetaSized> Bar<T> for () {}
 
 fn main() {
     let x: &dyn Foo = &();

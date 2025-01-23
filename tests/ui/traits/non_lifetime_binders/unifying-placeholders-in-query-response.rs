@@ -3,15 +3,18 @@
 //@[next] compile-flags: -Znext-solver
 //@ check-pass
 
+#![feature(sized_hierarchy)]
 #![feature(non_lifetime_binders)]
 //~^ WARN the feature `non_lifetime_binders` is incomplete
 
-pub trait Foo<T: ?Sized> {
-    type Bar<K: ?Sized>: ?Sized;
+use std::marker::MetaSized;
+
+pub trait Foo<T: ?MetaSized> {
+    type Bar<K: ?MetaSized>: ?MetaSized;
 }
 
 impl Foo<usize> for () {
-    type Bar<K: ?Sized> = K;
+    type Bar<K: ?MetaSized> = K;
 }
 
 pub fn f<T1, T2>(a: T1, b: T2)
