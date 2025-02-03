@@ -1002,9 +1002,12 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
 
         let mut traits = FxIndexMap::default();
         let mut fn_traits = FxIndexMap::default();
-        let mut has_sized_bound = false;
-        let mut has_negative_sized_bound = false;
         let mut lifetimes = SmallVec::<[ty::Region<'tcx>; 1]>::new();
+
+        let mut has_pos_sized = false;
+        let mut has_neg_sized = false;
+        let mut has_pos_metasized = false;
+        let mut has_neg_metasized = false;
 
         for (predicate, _) in bounds.iter_instantiated_copied(tcx, args) {
             let bound_predicate = predicate.kind();
@@ -1015,10 +1018,18 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
                     if tcx.is_lang_item(pred.def_id(), LangItem::Sized) {
                         match pred.polarity {
                             ty::PredicatePolarity::Positive => {
-                                has_sized_bound = true;
+                                has_pos_sized = true;
                                 continue;
                             }
-                            ty::PredicatePolarity::Negative => has_negative_sized_bound = true,
+                            ty::PredicatePolarity::Negative => has_neg_sized = true,
+                        }
+                    } else if tcx.is_lang_item(pred.def_id(), LangItem::MetaSized) {
+                        match pred.polarity {
+                            ty::PredicatePolarity::Positive => {
+                                has_pos_metasized = true;
+                                continue;
+                            }
+                            ty::PredicatePolarity::Negative => has_neg_metasized = true,
                         }
                     }
 
@@ -1054,7 +1065,7 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
 
         let mut first = true;
         // Insert parenthesis around (Fn(A, B) -> C) if the opaque ty has more than one other trait
-        let paren_needed = fn_traits.len() > 1 || traits.len() > 0 || !has_sized_bound;
+        let paren_needed = fn_traits.len() > 1 || traits.len() > 0 || !has_pos_sized;
 
         for ((bound_args, is_async), entry) in fn_traits {
             write!(self, "{}", if first { "" } else { " + " })?;
@@ -1180,8 +1191,10 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
             })?;
         }
 
-        let add_sized = has_sized_bound && (first || has_negative_sized_bound);
-        let add_maybe_sized = !has_sized_bound && !has_negative_sized_bound;
+        let add_sized = has_pos_sized && (first || has_neg_sized);
+        let add_maybe_metasized =
+            !has_pos_sized && !has_neg_sized && !has_pos_metasized && !has_neg_metasized;
+        let add_maybe_sized = !has_pos_sized && !has_neg_sized && !add_maybe_metasized;
         if add_sized || add_maybe_sized {
             if !first {
                 write!(self, " + ")?;
@@ -1190,6 +1203,11 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
                 write!(self, "?")?;
             }
             write!(self, "Sized")?;
+        } else if add_maybe_metasized {
+            if !first {
+                write!(self, " + ")?;
+            }
+            write!(self, "?MetaSized")?;
         }
 
         if !with_forced_trimmed_paths() {
