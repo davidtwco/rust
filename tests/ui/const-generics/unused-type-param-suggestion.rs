@@ -1,4 +1,6 @@
 #![crate_type="lib"]
+#![feature(sized_hierarchy)]
+use std::marker::MetaSized;
 
 struct S<N>;
 //~^ ERROR type parameter `N` is never used
@@ -23,5 +25,9 @@ type C<N: Sized> = ();
 //~^ ERROR type parameter `N` is never used
 //~| HELP consider removing `N`
 type D<N: ?Sized> = ();
+//~^ ERROR type parameter `N` is never used
+//~| HELP consider removing `N`
+//~| HELP if you intended `N` to be a const parameter
+type E<N: ?MetaSized> = ();
 //~^ ERROR type parameter `N` is never used
 //~| HELP consider removing `N`
