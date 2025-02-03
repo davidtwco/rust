@@ -338,14 +338,15 @@ pub(crate) fn to_pretty_impl_header(tcx: TyCtxt<'_>, impl_def_id: DefId) -> Opti
 
     let args = ty::GenericArgs::identity_for_item(tcx, impl_def_id);
 
-    // FIXME: Currently only handles ?Sized.
-    //        Needs to support ?Move and ?DynSized when they are implemented.
-    let mut types_without_default_bounds = FxIndexSet::default();
-    let sized_trait = tcx.lang_items().sized_trait();
+    let mut types_without_default_sized = FxIndexSet::default();
+    let mut types_without_default_metasized = FxIndexSet::default();
+    let sized_trait = tcx.require_lang_item(LangItem::Sized, None);
+    let metasized_trait = tcx.require_lang_item(LangItem::MetaSized, None);
 
     let arg_names = args.iter().map(|k| k.to_string()).filter(|k| k != "'_").collect::<Vec<_>>();
     if !arg_names.is_empty() {
-        types_without_default_bounds.extend(args.types());
+        types_without_default_sized.extend(args.types());
+        types_without_default_metasized.extend(args.types());
         w.push('<');
         w.push_str(&arg_names.join(", "));
         w.push('>');
@@ -363,21 +364,36 @@ pub(crate) fn to_pretty_impl_header(tcx: TyCtxt<'_>, impl_def_id: DefId) -> Opti
     // The predicates will contain default bounds like `T: Sized`. We need to
     // remove these bounds, and add `T: ?Sized` to any untouched type parameters.
     let predicates = tcx.predicates_of(impl_def_id).predicates;
-    let mut pretty_predicates =
-        Vec::with_capacity(predicates.len() + types_without_default_bounds.len());
+    let mut pretty_predicates = Vec::with_capacity(
+        predicates.len()
+            + types_without_default_sized.len()
+            + types_without_default_metasized.len(),
+    );
 
     for (p, _) in predicates {
         if let Some(poly_trait_ref) = p.as_trait_clause() {
-            if Some(poly_trait_ref.def_id()) == sized_trait {
-                // FIXME(#120456) - is `swap_remove` correct?
-                types_without_default_bounds.swap_remove(&poly_trait_ref.self_ty().skip_binder());
+            if poly_trait_ref.def_id() == sized_trait {
+                types_without_default_sized.swap_remove(&poly_trait_ref.self_ty().skip_binder());
+                types_without_default_metasized
+                    .swap_remove(&poly_trait_ref.self_ty().skip_binder());
+                continue;
+            } else if poly_trait_ref.def_id() == metasized_trait {
+                types_without_default_metasized
+                    .swap_remove(&poly_trait_ref.self_ty().skip_binder());
                 continue;
             }
         }
         pretty_predicates.push(p.to_string());
     }
 
-    pretty_predicates.extend(types_without_default_bounds.iter().map(|ty| format!("{ty}: ?Sized")));
+    pretty_predicates.extend(
+        types_without_default_sized
+            .difference(&types_without_default_metasized)
+            .map(|ty| format!("{ty}: ?Sized")),
+    );
+
+    pretty_predicates
+        .extend(types_without_default_metasized.iter().map(|ty| format!("{ty}: ?MetaSized")));
 
     if !pretty_predicates.is_empty() {
         write!(w, "\n  where {}", pretty_predicates.join(", ")).unwrap();
