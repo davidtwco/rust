@@ -1,10 +1,10 @@
-error[E0277]: the size for values of type `impl !Sized` cannot be known at compilation time
+error[E0277]: the size for values of type `impl !Sized + MetaSized` cannot be known at compilation time
   --> $DIR/opaque-type-unsatisfied-bound.rs:19:16
    |
 LL | fn weird2() -> impl !Sized {}
    |                ^^^^^^^^^^^ doesn't have a size known at compile-time
    |
-   = help: the trait `Sized` is not implemented for `impl !Sized`
+   = help: the trait `Sized` is not implemented for `impl !Sized + MetaSized`
    = note: the return type of a function must have a statically known size
 
 error[E0271]: type mismatch resolving `impl !Sized + Sized == ()`
@@ -19,7 +19,7 @@ error[E0271]: type mismatch resolving `impl !Sized + Sized == ()`
 LL | fn weird1() -> impl !Sized + Sized {}
    |                ^^^^^^^^^^^^^^^^^^^ types differ
 
-error[E0271]: type mismatch resolving `impl !Sized == ()`
+error[E0271]: type mismatch resolving `impl !Sized + MetaSized == ()`
   --> $DIR/opaque-type-unsatisfied-bound.rs:19:16
    |
 LL | fn weird2() -> impl !Sized {}
