@@ -29,6 +29,7 @@ mod bytewise;
 pub(crate) use bytewise::BytewiseEq;
 
 use self::Ordering::*;
+use crate::marker::MetaSized_;
 
 /// Trait for comparisons using the equality operator.
 ///
@@ -245,7 +246,7 @@ use self::Ordering::*;
     append_const_msg
 )]
 #[rustc_diagnostic_item = "PartialEq"]
-pub trait PartialEq<Rhs: ?Sized = Self> {
+pub trait PartialEq<Rhs: ?Sized + ?MetaSized_ = Self>: ?MetaSized_ {
     /// Tests for `self` and `other` values to be equal, and is used by `==`.
     #[must_use]
     #[stable(feature = "rust1", since = "1.0.0")]
@@ -331,7 +332,7 @@ pub macro PartialEq($item:item) {
 #[doc(alias = "!=")]
 #[stable(feature = "rust1", since = "1.0.0")]
 #[rustc_diagnostic_item = "Eq"]
-pub trait Eq: PartialEq<Self> {
+pub trait Eq: PartialEq<Self> + ?MetaSized_ {
     // this method is used solely by `impl Eq or #[derive(Eq)]` to assert that every component of a
     // type implements `Eq` itself. The current deriving infrastructure means doing this assertion
     // without using a method on this trait is nearly impossible.
@@ -360,7 +361,7 @@ pub macro Eq($item:item) {
 #[doc(hidden)]
 #[allow(missing_debug_implementations)]
 #[unstable(feature = "derive_eq", reason = "deriving hack, should not be public", issue = "none")]
-pub struct AssertParamIsEq<T: Eq + ?Sized> {
+pub struct AssertParamIsEq<T: Eq + ?Sized + ?MetaSized_> {
     _field: crate::marker::PhantomData<T>,
 }
 
@@ -943,7 +944,7 @@ impl<T: Clone> Clone for Reverse<T> {
 #[doc(alias = ">=")]
 #[stable(feature = "rust1", since = "1.0.0")]
 #[rustc_diagnostic_item = "Ord"]
-pub trait Ord: Eq + PartialOrd<Self> {
+pub trait Ord: Eq + PartialOrd<Self> + ?MetaSized_ {
     /// This method returns an [`Ordering`] between `self` and `other`.
     ///
     /// By convention, `self.cmp(&other)` returns the ordering matching the expression
@@ -1326,7 +1327,7 @@ pub macro Ord($item:item) {
     append_const_msg
 )]
 #[rustc_diagnostic_item = "PartialOrd"]
-pub trait PartialOrd<Rhs: ?Sized = Self>: PartialEq<Rhs> {
+pub trait PartialOrd<Rhs: ?Sized + ?MetaSized_ = Self>: PartialEq<Rhs> + ?MetaSized_ {
     /// This method returns an ordering between `self` and `other` values if one exists.
     ///
     /// # Examples
@@ -1731,6 +1732,7 @@ where
 mod impls {
     use crate::cmp::Ordering::{self, Equal, Greater, Less};
     use crate::hint::unreachable_unchecked;
+    use crate::marker::MetaSized_;
 
     macro_rules! partial_eq_impl {
         ($($t:ty)*) => ($(
@@ -1913,7 +1915,7 @@ mod impls {
     // & pointers
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized, B: ?Sized> PartialEq<&B> for &A
+    impl<A: ?Sized + ?MetaSized_, B: ?Sized + ?MetaSized_> PartialEq<&B> for &A
     where
         A: PartialEq<B>,
     {
@@ -1927,7 +1929,7 @@ mod impls {
         }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized, B: ?Sized> PartialOrd<&B> for &A
+    impl<A: ?Sized + ?MetaSized_, B: ?Sized + ?MetaSized_> PartialOrd<&B> for &A
     where
         A: PartialOrd<B>,
     {
@@ -1953,7 +1955,7 @@ mod impls {
         }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized> Ord for &A
+    impl<A: ?Sized + ?MetaSized_> Ord for &A
     where
         A: Ord,
     {
@@ -1963,12 +1965,12 @@ mod impls {
         }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized> Eq for &A where A: Eq {}
+    impl<A: ?Sized + ?MetaSized_> Eq for &A where A: Eq {}
 
     // &mut pointers
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized, B: ?Sized> PartialEq<&mut B> for &mut A
+    impl<A: ?Sized + ?MetaSized_, B: ?Sized + ?MetaSized_> PartialEq<&mut B> for &mut A
     where
         A: PartialEq<B>,
     {
@@ -1982,7 +1984,7 @@ mod impls {
         }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized, B: ?Sized> PartialOrd<&mut B> for &mut A
+    impl<A: ?Sized + ?MetaSized_, B: ?Sized + ?MetaSized_> PartialOrd<&mut B> for &mut A
     where
         A: PartialOrd<B>,
     {
@@ -2008,7 +2010,7 @@ mod impls {
         }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized> Ord for &mut A
+    impl<A: ?Sized + ?MetaSized_> Ord for &mut A
     where
         A: Ord,
     {
@@ -2018,10 +2020,10 @@ mod impls {
         }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized> Eq for &mut A where A: Eq {}
+    impl<A: ?Sized + ?MetaSized_> Eq for &mut A where A: Eq {}
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized, B: ?Sized> PartialEq<&mut B> for &A
+    impl<A: ?Sized + ?MetaSized_, B: ?Sized + ?MetaSized_> PartialEq<&mut B> for &A
     where
         A: PartialEq<B>,
     {
@@ -2036,7 +2038,7 @@ mod impls {
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<A: ?Sized, B: ?Sized> PartialEq<&B> for &mut A
+    impl<A: ?Sized + ?MetaSized_, B: ?Sized + ?MetaSized_> PartialEq<&B> for &mut A
     where
         A: PartialEq<B>,
     {

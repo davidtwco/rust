@@ -549,7 +549,7 @@ pub unsafe fn drop_in_place<T: ?Sized + ?MetaSized_>(to_drop: *mut T) {
 #[rustc_promotable]
 #[rustc_const_stable(feature = "const_ptr_null", since = "1.24.0")]
 #[rustc_diagnostic_item = "ptr_null"]
-pub const fn null<T: ?Sized + Thin>() -> *const T {
+pub const fn null<T: ?Sized + ?MetaSized_ + Thin>() -> *const T {
     from_raw_parts(without_provenance::<()>(0), ())
 }
 
@@ -792,7 +792,7 @@ pub fn with_exposed_provenance_mut<T>(addr: usize) -> *mut T {
 #[rustc_const_stable(feature = "ptr_from_ref", since = "1.76.0")]
 #[rustc_never_returns_null_ptr]
 #[rustc_diagnostic_item = "ptr_from_ref"]
-pub const fn from_ref<T: ?Sized>(r: &T) -> *const T {
+pub const fn from_ref<T: ?Sized + ?MetaSized_>(r: &T) -> *const T {
     r
 }
 
@@ -842,7 +842,7 @@ pub const fn from_ref<T: ?Sized>(r: &T) -> *const T {
 #[stable(feature = "ptr_from_ref", since = "1.76.0")]
 #[rustc_const_stable(feature = "ptr_from_ref", since = "1.76.0")]
 #[rustc_never_returns_null_ptr]
-pub const fn from_mut<T: ?Sized>(r: &mut T) -> *mut T {
+pub const fn from_mut<T: ?Sized + ?MetaSized_>(r: &mut T) -> *mut T {
     r
 }
 

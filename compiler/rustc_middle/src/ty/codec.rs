@@ -8,7 +8,7 @@
 
 use std::hash::Hash;
 use std::intrinsics;
-use std::marker::DiscriminantKind;
+use std::marker::{DiscriminantKind, MetaSized_};
 
 use rustc_abi::{FieldIdx, VariantIdx};
 use rustc_data_structures::fx::FxHashMap;
@@ -66,7 +66,7 @@ impl<'tcx, E: TyEncoder<I = TyCtxt<'tcx>>> EncodableWithShorthand<E> for ty::Pre
 ///
 /// `Decodable` can still be implemented in cases where `Decodable` is required
 /// by a trait bound.
-pub trait RefDecodable<'tcx, D: TyDecoder<I = TyCtxt<'tcx>>> {
+pub trait RefDecodable<'tcx, D: TyDecoder<I = TyCtxt<'tcx>>>: ?MetaSized_ {
     fn decode(d: &mut D) -> &'tcx Self;
 }
 

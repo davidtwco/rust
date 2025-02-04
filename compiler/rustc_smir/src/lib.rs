@@ -14,7 +14,9 @@
     test(attr(allow(unused_variables), deny(warnings)))
 )]
 #![doc(rust_logo)]
+#![feature(more_maybe_bounds)] // `cfg(bootstrap)`: remove with `MetaSized_`
 #![feature(rustdoc_internals)]
+#![feature(sized_hierarchy)] // `cfg(bootstrap)`: remove with `MetaSized_`
 #![warn(unreachable_pub)]
 // tidy-alphabetical-end
 

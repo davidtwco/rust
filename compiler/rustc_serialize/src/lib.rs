@@ -12,9 +12,11 @@
 #![doc(rust_logo)]
 #![feature(core_intrinsics)]
 #![feature(min_specialization)]
+#![feature(more_maybe_bounds)] // `cfg(bootstrap)`: remove with `MetaSized_`
 #![feature(never_type)]
 #![feature(ptr_sub_ptr)]
 #![feature(rustdoc_internals)]
+#![feature(sized_hierarchy)] // `cfg(bootstrap)`: remove with `MetaSized_`
 #![warn(unreachable_pub)]
 // tidy-alphabetical-end
 

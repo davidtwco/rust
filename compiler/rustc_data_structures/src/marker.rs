@@ -1,3 +1,5 @@
+use std::marker::MetaSized_;
+
 #[rustc_on_unimplemented(message = "`{Self}` doesn't implement `DynSend`. \
             Add it to `rustc_data_structures::marker` or use `IntoDynSyncSend` if it's already `Send`")]
 // This is an auto trait for types which can be sent across threads if `sync::is_dyn_thread_safe()`
@@ -13,7 +15,7 @@ pub unsafe auto trait DynSend {}
 pub unsafe auto trait DynSync {}
 
 // Same with `Sync` and `Send`.
-unsafe impl<T: DynSync + ?Sized> DynSend for &T {}
+unsafe impl<T: DynSync + ?Sized + ?MetaSized_> DynSend for &T {}
 
 macro_rules! impls_dyn_send_neg {
     ($([$t1: ty $(where $($generics1: tt)*)?])*) => {
@@ -25,14 +27,14 @@ macro_rules! impls_dyn_send_neg {
 impls_dyn_send_neg!(
     [std::env::Args]
     [std::env::ArgsOs]
-    [*const T where T: ?Sized]
-    [*mut T where T: ?Sized]
-    [std::ptr::NonNull<T> where T: ?Sized]
-    [std::rc::Rc<T> where T: ?Sized]
-    [std::rc::Weak<T> where T: ?Sized]
-    [std::sync::MutexGuard<'_, T> where T: ?Sized]
-    [std::sync::RwLockReadGuard<'_, T> where T: ?Sized]
-    [std::sync::RwLockWriteGuard<'_, T> where T: ?Sized]
+    [*const T where T: ?Sized + ?MetaSized_]
+    [*mut T where T: ?Sized + ?MetaSized_]
+    [std::ptr::NonNull<T> where T: ?Sized + ?MetaSized_]
+    [std::rc::Rc<T> where T: ?Sized + ?MetaSized_]
+    [std::rc::Weak<T> where T: ?Sized + ?MetaSized_]
+    [std::sync::MutexGuard<'_, T> where T: ?Sized + ?MetaSized_]
+    [std::sync::RwLockReadGuard<'_, T> where T: ?Sized + ?MetaSized_]
+    [std::sync::RwLockWriteGuard<'_, T> where T: ?Sized + ?MetaSized_]
     [std::io::StdoutLock<'_>]
     [std::io::StderrLock<'_>]
 );
@@ -90,14 +92,14 @@ macro_rules! impls_dyn_sync_neg {
 impls_dyn_sync_neg!(
     [std::env::Args]
     [std::env::ArgsOs]
-    [*const T where T: ?Sized]
-    [*mut T where T: ?Sized]
-    [std::cell::Cell<T> where T: ?Sized]
-    [std::cell::RefCell<T> where T: ?Sized]
-    [std::cell::UnsafeCell<T> where T: ?Sized]
-    [std::ptr::NonNull<T> where T: ?Sized]
-    [std::rc::Rc<T> where T: ?Sized]
-    [std::rc::Weak<T> where T: ?Sized]
+    [*const T where T: ?Sized + ?MetaSized_]
+    [*mut T where T: ?Sized + ?MetaSized_]
+    [std::cell::Cell<T> where T: ?Sized + ?MetaSized_]
+    [std::cell::RefCell<T> where T: ?Sized + ?MetaSized_]
+    [std::cell::UnsafeCell<T> where T: ?Sized + ?MetaSized_]
+    [std::ptr::NonNull<T> where T: ?Sized + ?MetaSized_]
+    [std::rc::Rc<T> where T: ?Sized + ?MetaSized_]
+    [std::rc::Weak<T> where T: ?Sized + ?MetaSized_]
     [std::cell::OnceCell<T> where T]
     [std::sync::mpsc::Receiver<T> where T]
     [std::sync::mpsc::Sender<T> where T]
@@ -157,10 +159,10 @@ impl_dyn_sync!(
     [thin_vec::ThinVec<T> where T: DynSync]
 );
 
-pub fn assert_dyn_sync<T: ?Sized + DynSync>() {}
-pub fn assert_dyn_send<T: ?Sized + DynSend>() {}
-pub fn assert_dyn_send_val<T: ?Sized + DynSend>(_t: &T) {}
-pub fn assert_dyn_send_sync_val<T: ?Sized + DynSync + DynSend>(_t: &T) {}
+pub fn assert_dyn_sync<T: ?Sized + ?MetaSized_ + DynSync>() {}
+pub fn assert_dyn_send<T: ?Sized + ?MetaSized_ + DynSend>() {}
+pub fn assert_dyn_send_val<T: ?Sized + ?MetaSized_ + DynSend>(_t: &T) {}
+pub fn assert_dyn_send_sync_val<T: ?Sized + ?MetaSized_ + DynSync + DynSend>(_t: &T) {}
 
 #[derive(Copy, Clone)]
 pub struct FromDyn<T>(T);
@@ -200,10 +202,10 @@ impl<T> std::ops::Deref for FromDyn<T> {
 // an instance of `DynSend` and `DynSync`, since the compiler cannot infer
 // it automatically in some cases. (e.g. Box<dyn Send / Sync>)
 #[derive(Copy, Clone)]
-pub struct IntoDynSyncSend<T: ?Sized>(pub T);
+pub struct IntoDynSyncSend<T: ?Sized + ?MetaSized_>(pub T);
 
-unsafe impl<T: ?Sized + Send> DynSend for IntoDynSyncSend<T> {}
-unsafe impl<T: ?Sized + Sync> DynSync for IntoDynSyncSend<T> {}
+unsafe impl<T: ?Sized + ?MetaSized_ + Send> DynSend for IntoDynSyncSend<T> {}
+unsafe impl<T: ?Sized + ?MetaSized_ + Sync> DynSync for IntoDynSyncSend<T> {}
 
 impl<T> std::ops::Deref for IntoDynSyncSend<T> {
     type Target = T;

@@ -79,7 +79,7 @@ pub trait Pointee: ?MetaSized_ {
 /// ```
 #[unstable(feature = "ptr_metadata", issue = "81513")]
 // NOTE: don’t stabilize this before trait aliases are stable in the language?
-pub trait Thin = Pointee<Metadata = ()>;
+pub trait Thin = Pointee<Metadata = ()> + ?MetaSized_;
 
 /// Extracts the metadata component of a pointer.
 ///

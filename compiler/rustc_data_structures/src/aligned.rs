@@ -1,3 +1,4 @@
+use std::marker::MetaSized_;
 use std::ptr::Alignment;
 
 /// Returns the ABI-required minimum alignment of a type in bytes.
@@ -19,7 +20,7 @@ pub const fn align_of<T: ?Sized + Aligned>() -> Alignment {
 /// example `[T]` has alignment of `T`.
 ///
 /// [`mem::align_of<Self>()`]: std::mem::align_of
-pub unsafe trait Aligned {
+pub unsafe trait Aligned: ?MetaSized_ {
     /// Alignment of `Self`.
     const ALIGN: Alignment;
 }

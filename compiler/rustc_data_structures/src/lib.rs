@@ -28,11 +28,13 @@
 #![feature(macro_metavar_expr)]
 #![feature(map_try_insert)]
 #![feature(min_specialization)]
+#![feature(more_maybe_bounds)] // `cfg(bootstrap)`: remove with `MetaSized_`
 #![feature(negative_impls)]
 #![feature(never_type)]
 #![feature(ptr_alignment_type)]
 #![feature(rustc_attrs)]
 #![feature(rustdoc_internals)]
+#![feature(sized_hierarchy)] // `cfg(bootstrap)`: remove with `MetaSized_`
 #![feature(test)]
 #![feature(thread_id_value)]
 #![feature(type_alias_impl_trait)]

@@ -52,11 +52,13 @@
 #![feature(let_chains)]
 #![feature(macro_metavar_expr)]
 #![feature(min_specialization)]
+#![feature(more_maybe_bounds)] // `cfg(bootstrap)`: remove with `MetaSized_`
 #![feature(negative_impls)]
 #![feature(never_type)]
 #![feature(ptr_alignment_type)]
 #![feature(rustc_attrs)]
 #![feature(rustdoc_internals)]
+#![feature(sized_hierarchy)] // `cfg(bootstrap)`: remove with `MetaSized_`
 #![feature(trait_upcasting)]
 #![feature(trusted_len)]
 #![feature(try_blocks)]

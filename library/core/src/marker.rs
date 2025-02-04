@@ -550,7 +550,7 @@ impl Copy for ! {}
 
 /// Shared references can be copied, but mutable references *cannot*!
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: ?Sized> Copy for &T {}
+impl<T: ?Sized + ?MetaSized_> Copy for &T {}
 
 /// Types for which it is safe to share references between threads.
 ///
