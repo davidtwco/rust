@@ -359,7 +359,7 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
 
         // Emit KCFI operand bundle
         let kcfi_bundle = self.kcfi_operand_bundle(fn_attrs, fn_abi, instance, llfn);
-        if let Some(kcfi_bundle) = kcfi_bundle.as_deref() {
+        if let Some(kcfi_bundle) = kcfi_bundle.as_ref().map(|b| b.deref()) {
             bundles.push(kcfi_bundle);
         }
 
@@ -1289,7 +1289,7 @@ impl<'a, 'll, 'tcx> BuilderMethods<'a, 'tcx> for Builder<'a, 'll, 'tcx> {
 
         // Emit KCFI operand bundle
         let kcfi_bundle = self.kcfi_operand_bundle(fn_attrs, fn_abi, instance, llfn);
-        if let Some(kcfi_bundle) = kcfi_bundle.as_deref() {
+        if let Some(kcfi_bundle) = kcfi_bundle.as_ref().map(|b| b.deref()) {
             bundles.push(kcfi_bundle);
         }
 
@@ -1638,7 +1638,7 @@ impl<'a, 'll, 'tcx> Builder<'a, 'll, 'tcx> {
 
         // Emit KCFI operand bundle
         let kcfi_bundle = self.kcfi_operand_bundle(fn_attrs, fn_abi, instance, llfn);
-        if let Some(kcfi_bundle) = kcfi_bundle.as_deref() {
+        if let Some(kcfi_bundle) = kcfi_bundle.as_ref().map(|b| b.deref()) {
             bundles.push(kcfi_bundle);
         }
 
