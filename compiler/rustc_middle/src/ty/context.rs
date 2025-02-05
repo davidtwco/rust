@@ -702,6 +702,7 @@ bidirectional_lang_item_map! {
     FutureOutput,
     Iterator,
     Metadata,
+    MetaSized,
     Option,
     PointeeTrait,
     Poll,

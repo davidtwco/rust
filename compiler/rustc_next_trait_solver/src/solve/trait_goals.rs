@@ -8,7 +8,7 @@ use rustc_type_ir::lang_items::TraitSolverLangItem;
 use rustc_type_ir::solve::CanonicalResponse;
 use rustc_type_ir::visit::TypeVisitableExt as _;
 use rustc_type_ir::{self as ty, Interner, TraitPredicate, TypingMode, Upcast as _, elaborate};
-use tracing::{instrument, trace};
+use tracing::{debug, instrument, trace};
 
 use crate::delegate::SolverDelegate;
 use crate::solve::assembly::structural_traits::{self, AsyncCallableRelevantTypes};
@@ -226,6 +226,21 @@ where
 
         ecx.probe_and_evaluate_goal_for_constituent_tys(
             CandidateSource::BuiltinImpl(BuiltinImplSource::Trivial),
+            goal,
+            structural_traits::instantiate_constituent_tys_for_sized_trait,
+        )
+    }
+
+    fn consider_builtin_metasized_candidate(
+        ecx: &mut EvalCtxt<'_, D>,
+        goal: Goal<I, Self>,
+    ) -> Result<Candidate<I>, NoSolution> {
+        if goal.predicate.polarity != ty::PredicatePolarity::Positive {
+            return Err(NoSolution);
+        }
+
+        ecx.probe_and_evaluate_goal_for_constituent_tys(
+            CandidateSource::BuiltinImpl(BuiltinImplSource::Misc),
             goal,
             structural_traits::instantiate_constituent_tys_for_sized_trait,
         )
@@ -1278,6 +1293,7 @@ where
         goal: Goal<I, TraitPredicate<I>>,
     ) -> Result<(CanonicalResponse<I>, Option<TraitGoalProvenVia>), NoSolution> {
         let candidates = self.assemble_and_evaluate_candidates(goal);
+        debug!(?candidates);
         self.merge_trait_candidates(goal, candidates)
     }
 }

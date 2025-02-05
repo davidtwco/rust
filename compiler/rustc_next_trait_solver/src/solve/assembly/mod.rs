@@ -156,6 +156,15 @@ where
         goal: Goal<I, Self>,
     ) -> Result<Candidate<I>, NoSolution>;
 
+    /// A type is `MetaSized` if its tail component is `MetaSized`.
+    ///
+    /// These components are given by built-in rules from
+    /// [`structural_traits::instantiate_constituent_tys_for_sized_trait`].
+    fn consider_builtin_metasized_candidate(
+        ecx: &mut EvalCtxt<'_, D>,
+        goal: Goal<I, Self>,
+    ) -> Result<Candidate<I>, NoSolution>;
+
     /// A type is `Copy` or `Clone` if its components are `Copy` or `Clone`.
     ///
     /// These components are given by built-in rules from
@@ -412,6 +421,7 @@ where
         } else {
             match cx.as_lang_item(trait_def_id) {
                 Some(TraitSolverLangItem::Sized) => G::consider_builtin_sized_candidate(self, goal),
+                Some(TraitSolverLangItem::MetaSized) => G::consider_builtin_metasized_candidate(self, goal),
                 Some(TraitSolverLangItem::Copy | TraitSolverLangItem::Clone) => {
                     G::consider_builtin_copy_clone_candidate(self, goal)
                 }

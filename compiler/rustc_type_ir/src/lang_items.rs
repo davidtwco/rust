@@ -30,6 +30,7 @@ pub enum TraitSolverLangItem {
     FutureOutput,
     Iterator,
     Metadata,
+    MetaSized,
     Option,
     PointeeTrait,
     Poll,
