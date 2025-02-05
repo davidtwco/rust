@@ -1,0 +1,204 @@
+warning: `MetaSized` bound is redundant
+  --> $DIR/default-bound.rs:16:21
+   |
+LL | fn pos_metasized<T: MetaSized>() {} // `T: Sized`
+   |                     ^^^^^^^^^
+   |
+   = help: default bound `Sized` is a supertrait of `MetaSized` and implies `MetaSized`
+
+warning: `MetaSized` bound is redundant
+  --> $DIR/default-bound.rs:22:31
+   |
+LL | fn pos_sized_pos_metasized<T: Sized + MetaSized>() {} // `T: Sized`
+   |                               ^^^^^   ^^^^^^^^^
+   |                               |
+   |                               `Sized` is a supertrait of `MetaSized` and implies `MetaSized`
+
+error: `?MetaSized` bound cannot be used with `Sized` bound
+  --> $DIR/default-bound.rs:25:31
+   |
+LL | fn pos_sized_neg_metasized<T: Sized + ?MetaSized>() {}
+   |                               ^^^^^   ^^^^^^^^^^ `?MetaSized` opts-out of `Sized` and `MetaSized`
+
+warning: `MetaSized` bound is redundant
+  --> $DIR/default-bound.rs:28:31
+   |
+LL | fn neg_sized_pos_metasized<T: ?Sized + MetaSized>() {} // `T: MetaSized`
+   |                               ^^^^^^   ^^^^^^^^^
+   |                               |
+   |                               `?Sized` is equivalent to `MetaSized`
+
+warning: `?Sized` bound is redundant
+  --> $DIR/default-bound.rs:31:31
+   |
+LL | fn neg_sized_neg_metasized<T: ?Sized + ?MetaSized>() {} // `T`
+   |                               ^^^^^^   ^^^^^^^^^^ `?MetaSized` implies `?Sized`
+
+warning: `MetaSized` bound is redundant
+  --> $DIR/default-bound.rs:34:31
+   |
+LL | fn pos_metasized_pos_sized<T: MetaSized + Sized>() {} // `T: Sized`
+   |                               ^^^^^^^^^   ^^^^^ `Sized` is a supertrait of `MetaSized` and implies `MetaSized`
+
+warning: `MetaSized` bound is redundant
+  --> $DIR/default-bound.rs:37:31
+   |
+LL | fn pos_metasized_neg_sized<T: MetaSized + ?Sized>() {} // `T: MetaSized`
+   |                               ^^^^^^^^^   ^^^^^^ `?Sized` is equivalent to `MetaSized`
+
+error: `?MetaSized` bound cannot be used with `Sized` bound
+  --> $DIR/default-bound.rs:40:31
+   |
+LL | fn neg_metasized_pos_sized<T: ?MetaSized + Sized>() {}
+   |                               ^^^^^^^^^^   ^^^^^
+   |                               |
+   |                               `?MetaSized` opts-out of `Sized` and `MetaSized`
+
+warning: `?Sized` bound is redundant
+  --> $DIR/default-bound.rs:43:31
+   |
+LL | fn neg_metasized_neg_sized<T: ?MetaSized + ?Sized>() {} // `T`
+   |                               ^^^^^^^^^^   ^^^^^^
+   |                               |
+   |                               `?MetaSized` implies `?Sized`
+
+error[E0203]: type parameter has more than one relaxed default bound, only one is supported
+  --> $DIR/default-bound.rs:47:28
+   |
+LL | fn repeated_sized_bound<T: ?Sized + ?Sized>() {}
+   |                            ^^^^^^   ^^^^^^
+   |
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0203]: type parameter has more than one relaxed default bound, only one is supported
+  --> $DIR/default-bound.rs:50:32
+   |
+LL | fn repeated_metasized_bound<T: ?MetaSized + ?MetaSized>() {}
+   |                                ^^^^^^^^^^   ^^^^^^^^^^
+   |
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+warning: relaxing a default bound only does something for `?Sized` and `?MetaSized`; all other traits are not bound by default
+  --> $DIR/default-bound.rs:53:45
+   |
+LL | fn additional_relaxed_bound<T: ?MetaSized + ?Copy>() {}
+   |                                             ^^^^^
+
+error[E0277]: the size for values of type `[u8]` cannot be known at compilation time
+  --> $DIR/default-bound.rs:59:12
+   |
+LL |     bare::<[u8]>();
+   |            ^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `[u8]`
+note: required by an implicit `Sized` bound in `bare`
+  --> $DIR/default-bound.rs:9:9
+   |
+LL | fn bare<T>() {} // `T: Sized`
+   |         ^ required by the implicit `Sized` requirement on this type parameter in `bare`
+help: consider relaxing the implicit `Sized` restriction
+   |
+LL | fn bare<T: ?Sized>() {} // `T: Sized`
+   |          ++++++++
+
+error[E0277]: the size for values of type `[u8]` cannot be known at compilation time
+  --> $DIR/default-bound.rs:61:17
+   |
+LL |     pos_sized::<[u8]>();
+   |                 ^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `[u8]`
+note: required by a bound in `pos_sized`
+  --> $DIR/default-bound.rs:12:17
+   |
+LL | fn pos_sized<T: Sized>() {} // `T: Sized`
+   |                 ^^^^^ required by this bound in `pos_sized`
+
+error[E0277]: the size for values of type `[u8]` cannot be known at compilation time
+  --> $DIR/default-bound.rs:63:21
+   |
+LL |     pos_metasized::<[u8]>();
+   |                     ^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `[u8]`
+note: required by an implicit `Sized` bound in `pos_metasized`
+  --> $DIR/default-bound.rs:16:18
+   |
+LL | fn pos_metasized<T: MetaSized>() {} // `T: Sized`
+   |                  ^ required by the implicit `Sized` requirement on this type parameter in `pos_metasized`
+help: consider relaxing the implicit `Sized` restriction
+   |
+LL | fn pos_metasized<T: MetaSized + ?Sized>() {} // `T: Sized`
+   |                               ++++++++
+
+error[E0277]: the size for values of type `[u8]` cannot be known at compilation time
+  --> $DIR/default-bound.rs:65:31
+   |
+LL |     pos_sized_pos_metasized::<[u8]>();
+   |                               ^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `[u8]`
+note: required by a bound in `pos_sized_pos_metasized`
+  --> $DIR/default-bound.rs:22:31
+   |
+LL | fn pos_sized_pos_metasized<T: Sized + MetaSized>() {} // `T: Sized`
+   |                               ^^^^^ required by this bound in `pos_sized_pos_metasized`
+
+error[E0277]: the size for values of type `[u8]` cannot be known at compilation time
+  --> $DIR/default-bound.rs:67:31
+   |
+LL |     pos_metasized_pos_sized::<[u8]>();
+   |                               ^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `[u8]`
+note: required by a bound in `pos_metasized_pos_sized`
+  --> $DIR/default-bound.rs:34:43
+   |
+LL | fn pos_metasized_pos_sized<T: MetaSized + Sized>() {} // `T: Sized`
+   |                                           ^^^^^ required by this bound in `pos_metasized_pos_sized`
+
+error[E0277]: the size for values of type `main::Foo` cannot be known
+  --> $DIR/default-bound.rs:76:17
+   |
+LL |     neg_sized::<Foo>();
+   |                 ^^^ doesn't have a known size
+   |
+   = help: the trait `MetaSized` is not implemented for `main::Foo`
+note: required by a bound in `neg_sized`
+  --> $DIR/default-bound.rs:14:14
+   |
+LL | fn neg_sized<T: ?Sized>() {} // `T: MetaSized`
+   |              ^ required by this bound in `neg_sized`
+
+error[E0277]: the size for values of type `main::Foo` cannot be known
+  --> $DIR/default-bound.rs:78:31
+   |
+LL |     neg_sized_pos_metasized::<Foo>();
+   |                               ^^^ doesn't have a known size
+   |
+   = help: the trait `MetaSized` is not implemented for `main::Foo`
+note: required by a bound in `neg_sized_pos_metasized`
+  --> $DIR/default-bound.rs:28:40
+   |
+LL | fn neg_sized_pos_metasized<T: ?Sized + MetaSized>() {} // `T: MetaSized`
+   |                                        ^^^^^^^^^ required by this bound in `neg_sized_pos_metasized`
+
+error[E0277]: the size for values of type `main::Foo` cannot be known at compilation time
+  --> $DIR/default-bound.rs:80:31
+   |
+LL |     pos_sized_neg_metasized::<Foo>();
+   |                               ^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `main::Foo`
+note: required by a bound in `pos_sized_neg_metasized`
+  --> $DIR/default-bound.rs:25:31
+   |
+LL | fn pos_sized_neg_metasized<T: Sized + ?MetaSized>() {}
+   |                               ^^^^^ required by this bound in `pos_sized_neg_metasized`
+
+error: aborting due to 12 previous errors; 8 warnings emitted
+
+Some errors have detailed explanations: E0203, E0277.
+For more information about an error, try `rustc --explain E0203`.

@@ -14,8 +14,7 @@ struct S4<T>(T) where for<'a> T: ?Trait<'a>;
 //~| WARN relaxing a default bound only does something for `?Sized`
 
 struct S5<T>(*const T) where T: ?Trait<'static> + ?Sized;
-//~^ ERROR type parameter has more than one relaxed default bound
-//~| WARN relaxing a default bound only does something for `?Sized`
+//~^ WARN relaxing a default bound only does something for `?Sized`
 
 impl<T> S1<T> {
     fn f() where T: ?Sized {}

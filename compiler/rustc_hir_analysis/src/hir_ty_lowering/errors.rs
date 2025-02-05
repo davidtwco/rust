@@ -24,6 +24,7 @@ use rustc_trait_selection::traits::{
 };
 use smallvec::SmallVec;
 
+use super::bounds::CollectedSizednessBounds;
 use crate::errors::{
     self, AssocItemConstraintsNotAllowedHere, ManualImplementation, MissingTypeParams,
     ParenthesizedFnTraitExpansion, TraitObjectDeclaredWithNoTraits,
@@ -32,10 +33,83 @@ use crate::fluent_generated as fluent;
 use crate::hir_ty_lowering::{AssocItemQSelf, HirTyLowerer};
 
 impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
+    pub(crate) fn warn_unintuitive_sizedness_supertraits(&self, bounds: CollectedSizednessBounds) {
+        let tcx = self.tcx();
+
+        if let Some(sized) = bounds.sized.positive
+            && let Some(metasized) = bounds.metasized.maybe
+        {
+            let span = MultiSpan::from_spans(vec![sized, metasized]);
+            let mut diag = tcx
+                .dcx()
+                .struct_span_err(span, "`?MetaSized` supertrait cannot be used with `Sized`");
+            diag.span_label(metasized, "`?MetaSized` opts-out of the default `MetaSized` supertrait and `Sized` is a stricter bound than `MetaSized`");
+            diag.emit();
+        }
+    }
+
+    // FIXME(sized_hierarchy): add suggestions here - e.g. `Sized + MetaSized` => `Sized`
+    // need to consider cases like `Sized + Foo + MetaSized` => `Sized`
+    pub(crate) fn warn_unintuitive_sizedness_bounds(&self, bounds: CollectedSizednessBounds) {
+        let tcx = self.tcx();
+
+        if !bounds.sized.any()
+            && let Some(metasized) = bounds.metasized.positive
+        {
+            let mut diag = tcx.dcx().struct_span_warn(metasized, "`MetaSized` bound is redundant");
+            diag.help(
+                "default bound `Sized` is a supertrait of `MetaSized` and implies `MetaSized`",
+            );
+            diag.emit();
+        }
+
+        if let Some(sized) = bounds.sized.positive
+            && let Some(metasized) = bounds.metasized.positive
+        {
+            let span = MultiSpan::from_spans(vec![sized, metasized]);
+            let mut diag = tcx.dcx().struct_span_warn(span, "`MetaSized` bound is redundant");
+            diag.span_label(
+                sized,
+                "`Sized` is a supertrait of `MetaSized` and implies `MetaSized`",
+            );
+            diag.emit();
+        }
+
+        if let Some(sized) = bounds.sized.positive
+            && let Some(metasized) = bounds.metasized.maybe
+        {
+            let span = MultiSpan::from_spans(vec![sized, metasized]);
+            let mut diag = tcx
+                .dcx()
+                .struct_span_err(span, "`?MetaSized` bound cannot be used with `Sized` bound");
+            diag.span_label(metasized, "`?MetaSized` opts-out of `Sized` and `MetaSized`");
+            diag.emit();
+        }
+
+        if let Some(sized) = bounds.sized.maybe
+            && let Some(metasized) = bounds.metasized.positive
+        {
+            let span = MultiSpan::from_spans(vec![sized, metasized]);
+            let mut diag = tcx.dcx().struct_span_warn(span, "`MetaSized` bound is redundant");
+            diag.span_label(sized, "`?Sized` is equivalent to `MetaSized`");
+            diag.emit();
+        }
+
+        if let Some(sized) = bounds.sized.maybe
+            && let Some(metasized) = bounds.metasized.maybe
+        {
+            let span = MultiSpan::from_spans(vec![sized, metasized]);
+            let mut diag = tcx.dcx().struct_span_warn(span, "`?Sized` bound is redundant");
+            diag.span_label(metasized, "`?MetaSized` implies `?Sized`");
+            diag.emit();
+        }
+    }
+
     /// Check for multiple relaxed default bounds and relaxed bounds of non-sizedness traits.
-    pub(crate) fn check_and_report_invalid_unbounds_on_param(
+    pub(crate) fn check_and_report_invalid_unbounds(
         &self,
         unbounds: SmallVec<[&PolyTraitRef<'_>; 1]>,
+        is_supertrait: bool,
     ) {
         let tcx = self.tcx();
 
@@ -44,17 +118,47 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         // `cfg(bootstrap)`: remove next line when removing the trait alias
         let metasized_alias_did = tcx.lang_items().metasized_trait_alias();
 
+        // Remove the first `?MetaSized` and `?Sized` unbounds as these are okay.
+        let mut sized_unbounds_seen = 0;
+        let mut metasized_unbounds_seen = 0;
+        let invalid_unbounds: Vec<_> = unbounds
+            .iter()
+            .filter(|unbound| {
+                if let Res::Def(DefKind::TraitAlias | DefKind::Trait, did) =
+                    unbound.trait_ref.path.res
+                    && (Some(did) == metasized_alias_did || did == metasized_did)
+                {
+                    metasized_unbounds_seen += 1;
+                    if metasized_unbounds_seen == 1 {
+                        return false;
+                    }
+                }
+
+                if let Res::Def(DefKind::Trait, did) = unbound.trait_ref.path.res
+                    && did == sized_did
+                {
+                    sized_unbounds_seen += 1;
+                    if sized_unbounds_seen == 1 {
+                        return false;
+                    }
+                }
+
+                true
+            })
+            .collect();
+
         let mut unique_bounds = FxIndexSet::default();
         let mut seen_repeat = false;
-        for unbound in &unbounds {
+        for unbound in &invalid_unbounds {
             if let Res::Def(DefKind::Trait, unbound_def_id) = unbound.trait_ref.path.res {
                 seen_repeat |= !unique_bounds.insert(unbound_def_id);
             }
         }
 
-        if unbounds.len() > 1 {
-            let err = errors::MultipleRelaxedDefaultBounds {
+        if invalid_unbounds.len() > 1 || sized_unbounds_seen > 1 || metasized_unbounds_seen > 1 {
+            let err = errors::MultipleRelaxedDefaults {
                 spans: unbounds.iter().map(|ptr| ptr.span).collect(),
+                is_supertrait,
             };
 
             if seen_repeat {
@@ -64,29 +168,32 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             };
         }
 
-        for unbound in unbounds {
-            if let Res::Def(DefKind::TraitAlias, did) = unbound.trait_ref.path.res
-                && Some(did) == metasized_alias_did
-            {
-                continue;
-            }
-            if let Res::Def(DefKind::Trait, did) = unbound.trait_ref.path.res
-                && (did == sized_did || did == metasized_did)
-            {
-                continue;
-            }
+        if !is_supertrait {
+            for unbound in &unbounds {
+                if let Res::Def(DefKind::TraitAlias, did) = unbound.trait_ref.path.res
+                    && Some(did) == metasized_alias_did
+                {
+                    continue;
+                }
 
-            // There was a `?Trait` bound, but it was not `?Sized` or `?MetaSized`; warn.
-            self.dcx().span_warn(
-                unbound.span,
-                if tcx.features().sized_hierarchy() {
-                    "relaxing a default bound only does something for `?Sized` and \
-                     `?MetaSized`; all other traits are not bound by default"
-                } else {
-                    "relaxing a default bound only does something for `?Sized`; \
-                     all other traits are not bound by default"
-                },
-            );
+                if let Res::Def(DefKind::Trait, did) = unbound.trait_ref.path.res
+                    && (did == sized_did || did == metasized_did)
+                {
+                    continue;
+                }
+
+                // There was a `?Trait` bound, but it was not `?Sized` or `?MetaSized`; warn.
+                self.dcx().span_warn(
+                    unbound.span,
+                    if tcx.features().sized_hierarchy() {
+                        "relaxing a default bound only does something for `?Sized` and \
+                         `?MetaSized`; all other traits are not bound by default"
+                    } else {
+                        "relaxing a default bound only does something for `?Sized`; \
+                         all other traits are not bound by default"
+                    },
+                );
+            }
         }
     }
 

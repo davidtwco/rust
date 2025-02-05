@@ -6,7 +6,7 @@ use derive_where::derive_where;
 use rustc_type_ir::fold::TypeFoldable;
 use rustc_type_ir::inherent::*;
 use rustc_type_ir::lang_items::TraitSolverLangItem;
-use rustc_type_ir::solve::{inspect, Sizedness};
+use rustc_type_ir::solve::{Sizedness, inspect};
 use rustc_type_ir::visit::TypeVisitableExt as _;
 use rustc_type_ir::{self as ty, Interner, TypingMode, Upcast as _, elaborate};
 use tracing::{debug, instrument};

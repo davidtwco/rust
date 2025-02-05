@@ -364,8 +364,14 @@ hir_analysis_missing_type_params =
         *[other] parameters
     } must be specified on the object type
 
-hir_analysis_multiple_relaxed_default_bounds =
-    type parameter has more than one relaxed default bound, only one is supported
+hir_analysis_multiple_relaxed_defaults =
+    {$is_supertrait ->
+        [true] supertrait
+        *[false] type parameter
+    } has more than one relaxed default {$is_supertrait ->
+        [true] supertrait
+        *[false] bound
+    }, only one is supported
 
 hir_analysis_must_be_name_of_associated_function = must be a name of an associated function
 

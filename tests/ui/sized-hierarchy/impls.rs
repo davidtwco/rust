@@ -12,8 +12,8 @@ use std::marker::MetaSized;
 fn needs_sized<T: Sized>() { }
 fn takes_sized<T: Sized>(_t: T) { }
 
-fn needs_metasized<T: ?Sized + MetaSized>() { }
-fn takes_metasized<T: ?Sized + MetaSized>(_t: T) { }
+fn needs_metasized<T: ?Sized>() { }
+fn takes_metasized<T: ?Sized>(_t: T) { }
 
 fn main() {
     // `bool`

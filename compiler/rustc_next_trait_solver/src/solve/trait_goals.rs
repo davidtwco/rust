@@ -229,11 +229,11 @@ where
             CandidateSource::BuiltinImpl(BuiltinImplSource::Trivial),
             goal,
             match sizedness {
-                Sizedness::Sized =>
-                    structural_traits::instantiate_constituent_tys_for_sized_trait,
-                Sizedness::MetaSized =>
-                    structural_traits::instantiate_constituent_tys_for_metasized_trait,
-            }
+                Sizedness::Sized => structural_traits::instantiate_constituent_tys_for_sized_trait,
+                Sizedness::MetaSized => {
+                    structural_traits::instantiate_constituent_tys_for_metasized_trait
+                }
+            },
         )
     }
 

@@ -191,6 +191,9 @@ ast_passes_optional_trait_object = `?Trait` is not permitted in trait object typ
 ast_passes_optional_trait_supertrait = `?Trait` is not permitted in supertraits
     .note = traits are `?{$path_str}` by default
 
+ast_passes_optional_trait_supertrait_sized_hierarchy = only `?MetaSized` is permitted in supertraits
+    .note = traits are `?{$path_str}` by default
+
 ast_passes_out_of_order_params = {$param_ord} parameters must be declared prior to {$max_param} parameters
     .suggestion = reorder the parameters: lifetimes, then consts and types
 

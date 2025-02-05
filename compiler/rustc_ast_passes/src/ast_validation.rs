@@ -1245,15 +1245,27 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
                         if !self.features.more_maybe_bounds()
                             && !is_maybe_metasized_bound(bound) =>
                     {
-                        self.sess
-                            .create_feature_err(
-                                errors::OptionalTraitSupertrait {
-                                    span: trait_ref.span,
-                                    path_str: pprust::path_to_string(&trait_ref.trait_ref.path),
-                                },
-                                sym::more_maybe_bounds,
-                            )
-                            .emit();
+                        if self.features.sized_hierarchy() {
+                            self.sess
+                                .create_feature_err(
+                                    errors::OptionalTraitSupertraitSizedHierarchy {
+                                        span: trait_ref.span,
+                                        path_str: pprust::path_to_string(&trait_ref.trait_ref.path),
+                                    },
+                                    sym::more_maybe_bounds,
+                                )
+                                .emit();
+                        } else {
+                            self.sess
+                                .create_feature_err(
+                                    errors::OptionalTraitSupertrait {
+                                        span: trait_ref.span,
+                                        path_str: pprust::path_to_string(&trait_ref.trait_ref.path),
+                                    },
+                                    sym::more_maybe_bounds,
+                                )
+                                .emit();
+                        }
                     }
                     (BoundKind::TraitObject, BoundConstness::Never, BoundPolarity::Maybe(_))
                         if !self.features.more_maybe_bounds() =>

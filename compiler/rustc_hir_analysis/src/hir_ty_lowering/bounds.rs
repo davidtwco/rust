@@ -22,29 +22,29 @@ use crate::hir_ty_lowering::{
     AssocItemQSelf, FeedConstTy, HirTyLowerer, PredicateFilter, RegionInferReason,
 };
 
-#[derive(Debug, Default)]
-struct CollectedBound {
+#[derive(Copy, Clone, Debug, Default)]
+pub(crate) struct CollectedBound {
     /// `Trait`
-    positive: bool,
+    pub(crate) positive: Option<Span>,
     /// `?Trait`
-    maybe: bool,
+    pub(crate) maybe: Option<Span>,
     /// `!Trait`
-    negative: bool,
+    pub(crate) negative: Option<Span>,
 }
 
 impl CollectedBound {
     /// Returns `true` if any of `Trait`, `?Trait` or `!Trait` were encountered.
-    fn any(&self) -> bool {
-        self.positive || self.maybe || self.negative
+    pub(crate) fn any(&self) -> bool {
+        self.positive.is_some() || self.maybe.is_some() || self.negative.is_some()
     }
 }
 
-#[derive(Debug)]
-struct CollectedSizednessBounds {
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct CollectedSizednessBounds {
     // Collected `Sized` bounds
-    sized: CollectedBound,
+    pub(crate) sized: CollectedBound,
     // Collected `MetaSized` bounds
-    metasized: CollectedBound,
+    pub(crate) metasized: CollectedBound,
 }
 
 fn collect_sizedness_bounds<'tcx>(
@@ -74,17 +74,17 @@ fn collect_sizedness_bounds<'tcx>(
 
             if ptr.trait_ref.path.res == Res::Def(DefKind::Trait, sized_did) {
                 match ptr.modifiers.polarity {
-                    hir::BoundPolarity::Maybe(_) => sized.maybe = true,
-                    hir::BoundPolarity::Negative(_) => sized.negative = true,
-                    hir::BoundPolarity::Positive => sized.positive = true,
+                    hir::BoundPolarity::Maybe(_) => sized.maybe = Some(ptr.span),
+                    hir::BoundPolarity::Negative(_) => sized.negative = Some(ptr.span),
+                    hir::BoundPolarity::Positive => sized.positive = Some(ptr.span),
                 }
             }
 
             if ptr.trait_ref.path.res == Res::Def(DefKind::Trait, metasized_did) {
                 match ptr.modifiers.polarity {
-                    hir::BoundPolarity::Maybe(_) => metasized.maybe = true,
-                    hir::BoundPolarity::Negative(_) => metasized.negative = true,
-                    hir::BoundPolarity::Positive => metasized.positive = true,
+                    hir::BoundPolarity::Maybe(_) => metasized.maybe = Some(ptr.span),
+                    hir::BoundPolarity::Negative(_) => metasized.negative = Some(ptr.span),
+                    hir::BoundPolarity::Positive => metasized.positive = Some(ptr.span),
                 }
             }
 
@@ -93,9 +93,9 @@ fn collect_sizedness_bounds<'tcx>(
                 && ptr.trait_ref.path.res == Res::Def(DefKind::TraitAlias, alias_did)
             {
                 match ptr.modifiers.polarity {
-                    hir::BoundPolarity::Maybe(_) => metasized.maybe = true,
-                    hir::BoundPolarity::Negative(_) => metasized.negative = true,
-                    hir::BoundPolarity::Positive => metasized.positive = true,
+                    hir::BoundPolarity::Maybe(_) => metasized.maybe = Some(ptr.span),
+                    hir::BoundPolarity::Negative(_) => metasized.negative = Some(ptr.span),
+                    hir::BoundPolarity::Positive => metasized.positive = Some(ptr.span),
                 }
             }
         }
@@ -128,8 +128,10 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         span: Span,
     ) {
         let tcx = self.tcx();
-        let (collected, _unbounds) = collect_sizedness_bounds(tcx, hir_bounds, None, span);
+        let (collected, unbounds) = collect_sizedness_bounds(tcx, hir_bounds, None, span);
         debug!(?collected, "trait");
+        self.warn_unintuitive_sizedness_supertraits(collected);
+        self.check_and_report_invalid_unbounds(unbounds, true);
 
         if !collected.sized.any() && !collected.metasized.any() {
             // If there are no explicit `Sized`, `?Sized` or `!Sized` bounds and no explicit
@@ -155,13 +157,16 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         let (collected, unbounds) =
             collect_sizedness_bounds(tcx, hir_bounds, self_ty_where_predicates, span);
         debug!(?collected, "params");
-        self.check_and_report_invalid_unbounds_on_param(unbounds);
+        self.warn_unintuitive_sizedness_bounds(collected);
+        self.check_and_report_invalid_unbounds(unbounds, false);
 
-        if !collected.sized.any() && !(collected.metasized.negative || collected.metasized.maybe) {
+        if !collected.sized.any()
+            && !(collected.metasized.negative.is_some() || collected.metasized.maybe.is_some())
+        {
             // If there are no explicit `Sized`, `?Sized` or `!Sized` bounds and there isn't a
             // `?MetaSized` or `!MetaSized` bound then add the default `Sized` bound.
             bounds.push_sized(tcx, self_ty, span);
-        } else if !collected.sized.positive && !collected.metasized.any() {
+        } else if !collected.sized.positive.is_some() && !collected.metasized.any() {
             // If there are no explicit `Sized` bounds or there is an explicit `?Sized` or `!Sized`
             // bound, and no explicit `MetaSized` bounds, then add a `MetaSized` bound.
             bounds.push_metasized(tcx, self_ty, span);

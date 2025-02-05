@@ -3,7 +3,7 @@
 
 use std::marker::MetaSized;
 
-fn needs_metasized<T: ?Sized + MetaSized>() {}
+fn needs_metasized<T: ?Sized>() {}
 fn needs_sized<T: Sized>() {}
 
 fn main() {

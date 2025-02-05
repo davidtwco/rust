@@ -580,6 +580,15 @@ pub(crate) struct OptionalTraitSupertrait {
 }
 
 #[derive(Diagnostic)]
+#[diag(ast_passes_optional_trait_supertrait_sized_hierarchy)]
+#[note]
+pub(crate) struct OptionalTraitSupertraitSizedHierarchy {
+    #[primary_span]
+    pub span: Span,
+    pub path_str: String,
+}
+
+#[derive(Diagnostic)]
 #[diag(ast_passes_optional_trait_object)]
 pub(crate) struct OptionalTraitObject {
     #[primary_span]

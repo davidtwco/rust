@@ -1,0 +1,116 @@
+error[E0658]: only `?MetaSized` is permitted in supertraits
+  --> $DIR/default-supertrait.rs:7:17
+   |
+LL | trait NegSized: ?Sized { }
+   |                 ^^^^^^
+   |
+   = note: traits are `?Sized` by default
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0658]: only `?MetaSized` is permitted in supertraits
+  --> $DIR/default-supertrait.rs:20:29
+   |
+LL | trait NegSizedPosMetaSized: ?Sized + MetaSized { }
+   |                             ^^^^^^
+   |
+   = note: traits are `?Sized` by default
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0658]: only `?MetaSized` is permitted in supertraits
+  --> $DIR/default-supertrait.rs:23:29
+   |
+LL | trait NegSizedNegMetaSized: ?Sized + ?MetaSized { }
+   |                             ^^^^^^
+   |
+   = note: traits are `?Sized` by default
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0658]: only `?MetaSized` is permitted in supertraits
+  --> $DIR/default-supertrait.rs:28:41
+   |
+LL | trait PosMetaSizedNegSized: MetaSized + ?Sized { }
+   |                                         ^^^^^^
+   |
+   = note: traits are `?Sized` by default
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0658]: only `?MetaSized` is permitted in supertraits
+  --> $DIR/default-supertrait.rs:34:42
+   |
+LL | trait NegMetaSizedNegSized: ?MetaSized + ?Sized { }
+   |                                          ^^^^^^
+   |
+   = note: traits are `?Sized` by default
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0658]: only `?MetaSized` is permitted in supertraits
+  --> $DIR/default-supertrait.rs:38:27
+   |
+LL | trait RepeatedSizedBound: ?Sized + ?Sized { }
+   |                           ^^^^^^
+   |
+   = note: traits are `?Sized` by default
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0658]: only `?MetaSized` is permitted in supertraits
+  --> $DIR/default-supertrait.rs:38:36
+   |
+LL | trait RepeatedSizedBound: ?Sized + ?Sized { }
+   |                                    ^^^^^^
+   |
+   = note: traits are `?Sized` by default
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0658]: only `?MetaSized` is permitted in supertraits
+  --> $DIR/default-supertrait.rs:46:44
+   |
+LL | trait AdditionalRelaxedBound: ?MetaSized + ?Copy { }
+   |                                            ^^^^^
+   |
+   = note: traits are `?Copy` by default
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error: `?MetaSized` supertrait cannot be used with `Sized`
+  --> $DIR/default-supertrait.rs:17:29
+   |
+LL | trait PosSizedNegMetaSized: Sized + ?MetaSized { }
+   |                             ^^^^^   ^^^^^^^^^^ `?MetaSized` opts-out of the default `MetaSized` supertrait and `Sized` is a stricter bound than `MetaSized`
+
+error: `?MetaSized` supertrait cannot be used with `Sized`
+  --> $DIR/default-supertrait.rs:31:29
+   |
+LL | trait NegMetaSizedPosSized: ?MetaSized + Sized { }
+   |                             ^^^^^^^^^^   ^^^^^
+   |                             |
+   |                             `?MetaSized` opts-out of the default `MetaSized` supertrait and `Sized` is a stricter bound than `MetaSized`
+
+error[E0203]: supertrait has more than one relaxed default supertrait, only one is supported
+  --> $DIR/default-supertrait.rs:38:27
+   |
+LL | trait RepeatedSizedBound: ?Sized + ?Sized { }
+   |                           ^^^^^^   ^^^^^^
+   |
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error[E0203]: supertrait has more than one relaxed default supertrait, only one is supported
+  --> $DIR/default-supertrait.rs:43:31
+   |
+LL | trait RepeatedMetaSizedBound: ?MetaSized + ?MetaSized { }
+   |                               ^^^^^^^^^^   ^^^^^^^^^^
+   |
+   = help: add `#![feature(more_maybe_bounds)]` to the crate attributes to enable
+   = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
+
+error: aborting due to 12 previous errors
+
+Some errors have detailed explanations: E0203, E0658.
+For more information about an error, try `rustc --explain E0203`.

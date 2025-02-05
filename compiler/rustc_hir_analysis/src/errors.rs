@@ -285,10 +285,11 @@ pub(crate) struct CopyImplOnTypeWithDtor {
 }
 
 #[derive(Diagnostic)]
-#[diag(hir_analysis_multiple_relaxed_default_bounds, code = E0203)]
-pub(crate) struct MultipleRelaxedDefaultBounds {
+#[diag(hir_analysis_multiple_relaxed_defaults, code = E0203)]
+pub(crate) struct MultipleRelaxedDefaults {
     #[primary_span]
     pub spans: Vec<Span>,
+    pub is_supertrait: bool,
 }
 
 #[derive(Diagnostic)]
