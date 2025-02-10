@@ -1,3 +1,5 @@
+use crate::marker::PointeeSized;
+
 /// Used for immutable dereferencing operations, like `*v`.
 ///
 /// In addition to being used for explicit dereferencing operations with the
@@ -390,12 +392,12 @@ where
 #[lang = "legacy_receiver"]
 #[unstable(feature = "legacy_receiver_trait", issue = "none")]
 #[doc(hidden)]
-pub trait LegacyReceiver {
+pub trait LegacyReceiver: PointeeSized {
     // Empty.
 }
 
 #[unstable(feature = "legacy_receiver_trait", issue = "none")]
-impl<T: ?Sized> LegacyReceiver for &T {}
+impl<T: ?Sized + PointeeSized> LegacyReceiver for &T {}
 
 #[unstable(feature = "legacy_receiver_trait", issue = "none")]
-impl<T: ?Sized> LegacyReceiver for &mut T {}
+impl<T: ?Sized + PointeeSized> LegacyReceiver for &mut T {}

@@ -29,6 +29,7 @@ mod bytewise;
 pub(crate) use bytewise::BytewiseEq;
 
 use self::Ordering::*;
+use crate::marker::PointeeSized;
 
 /// Trait for comparisons using the equality operator.
 ///
