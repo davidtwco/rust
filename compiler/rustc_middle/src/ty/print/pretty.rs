@@ -1002,16 +1002,20 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
 
         let mut traits = FxIndexMap::default();
         let mut fn_traits = FxIndexMap::default();
+        let mut lifetimes = SmallVec::<[ty::Region<'tcx>; 1]>::new();
+
         let mut has_sized_bound = false;
         let mut has_negative_sized_bound = false;
-        let mut lifetimes = SmallVec::<[ty::Region<'tcx>; 1]>::new();
+        let mut has_metasized_bound = false;
+        let mut has_pointeesized_bound = false;
 
         for (predicate, _) in bounds.iter_instantiated_copied(tcx, args) {
             let bound_predicate = predicate.kind();
 
             match bound_predicate.skip_binder() {
                 ty::ClauseKind::Trait(pred) => {
-                    // Don't print `+ Sized`, but rather `+ ?Sized` if absent.
+                    // Don't print `?Sized` as an alias for `MetaSized`, and skip sizedness bounds
+                    // to be added at the end.
                     if tcx.is_lang_item(pred.def_id(), LangItem::Sized) {
                         match pred.polarity {
                             ty::PredicatePolarity::Positive => {
@@ -1020,6 +1024,12 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
                             }
                             ty::PredicatePolarity::Negative => has_negative_sized_bound = true,
                         }
+                    } else if tcx.is_lang_item(pred.def_id(), LangItem::MetaSized) {
+                        has_metasized_bound = true;
+                        continue;
+                    } else if tcx.is_lang_item(pred.def_id(), LangItem::PointeeSized) {
+                        has_pointeesized_bound = true;
+                        continue;
                     }
 
                     self.insert_trait_and_projection(
@@ -1185,15 +1195,21 @@ pub trait PrettyPrinter<'tcx>: Printer<'tcx> + fmt::Write {
         }
 
         let add_sized = has_sized_bound && (first || has_negative_sized_bound);
-        let add_maybe_sized = !has_sized_bound && !has_negative_sized_bound;
-        if add_sized || add_maybe_sized {
+        if add_sized {
             if !first {
                 write!(self, " + ")?;
             }
-            if add_maybe_sized {
-                write!(self, "?")?;
-            }
             write!(self, "Sized")?;
+        } else if has_metasized_bound {
+            if !first {
+                write!(self, " + ")?;
+            }
+            write!(self, "MetaSized")?;
+        } else if has_pointeesized_bound {
+            if !first {
+                write!(self, " + ")?;
+            }
+            write!(self, "PointeeSized")?;
         }
 
         if !with_forced_trimmed_paths() {

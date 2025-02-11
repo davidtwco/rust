@@ -13,7 +13,7 @@ fn hello() -> Box<impl Trait + ?Sized> {
         let x = hello();
         //[next]~^ ERROR: the trait bound `dyn Send: Trait` is not satisfied
         let y: Box<dyn Send> = x;
-        //[old]~^ ERROR: the size for values of type `impl Trait + ?Sized` cannot be know
+        //[old]~^ ERROR: the size for values of type `impl Trait + MetaSized` cannot be know
     }
     Box::new(1u32)
 }
