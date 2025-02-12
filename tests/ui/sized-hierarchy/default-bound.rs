@@ -1,4 +1,6 @@
 //@ check-fail
+//@ compile-flags: -Zunstable-options
+//@ edition: future
 #![feature(extern_types, sized_hierarchy)]
 
 use std::marker::{MetaSized, PointeeSized};
@@ -9,18 +11,19 @@ fn bare<T>() {}
 fn sized<T: Sized>() {}
 
 fn neg_sized<T: ?Sized>() {}
+//~^ ERROR relaxing a default bound is disallowed in Rust Future
 
 
 fn metasized<T: MetaSized>() {}
 
 fn neg_metasized<T: ?MetaSized>() {}
-//~^ ERROR relaxing a default bound only does something for `?Sized`; all other traits are not bound by default
+//~^ ERROR relaxing a default bound is disallowed in Rust Future
 
 
 fn pointeesized<T: PointeeSized>() { }
 
 fn neg_pointeesized<T: ?PointeeSized>() { }
-//~^ ERROR relaxing a default bound only does something for `?Sized`; all other traits are not bound by default
+//~^ ERROR relaxing a default bound is disallowed in Rust Future
 
 
 fn main() {

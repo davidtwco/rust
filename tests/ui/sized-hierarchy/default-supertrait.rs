@@ -1,4 +1,6 @@
 //@ check-fail
+//@ compile-flags: -Zunstable-options
+//@ edition: future
 #![feature(sized_hierarchy)]
 
 use std::marker::{MetaSized, PointeeSized};

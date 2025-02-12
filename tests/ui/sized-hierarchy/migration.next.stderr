@@ -1,0 +1,16 @@
+error: relaxing a default bound is disallowed in Rust Next
+  --> $DIR/migration.rs:14:21
+   |
+LL | pub fn metasized<T: ?Sized>() { }
+   |                     ^^^^^^ help: replace `?Sized` with `MetaSized`: `MetaSized`
+   |
+   = help: `?Sized` is equivalent to a `std::marker::MetaSized` bound
+
+error: relaxing a default bound is disallowed in Rust Next
+  --> $DIR/migration.rs:19:14
+   |
+LL | pub fn tr<T: ?Tr>() { }
+   |              ^^^
+
+error: aborting due to 2 previous errors
+

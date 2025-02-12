@@ -1,5 +1,9 @@
 //@ aux-build:pretty-print-dep.rs
 //@ compile-flags: --crate-type=lib
+//@ revisions: e2024 future
+//@[e2024] edition: 2024
+//@[future] compile-flags: -Zunstable-options
+//@[future] edition: future
 #![feature(sized_hierarchy)]
 
 // Test that printing the sizedness trait bounds in the conflicting impl error with
@@ -18,8 +22,9 @@ struct X<T>(T);
 impl<T: Sized> SizedTr for X<T> {}
 //~^ ERROR conflicting implementations of trait `SizedTr` for type `X<_>`
 
+#[cfg(not(future))]
 impl<T: ?Sized> pretty_print_dep::NegSizedTr for X<T> {}
-//~^ ERROR conflicting implementations of trait `NegSizedTr` for type `X<_>`
+//[e2024]~^ ERROR conflicting implementations of trait `NegSizedTr` for type `X<_>`
 
 impl<T: MetaSized> MetaSizedTr for X<T> {}
 //~^ ERROR conflicting implementations of trait `MetaSizedTr` for type `X<_>`

@@ -1,4 +1,6 @@
 //@ check-pass
+//@ compile-flags: -Zunstable-options
+//@ edition: future
 #![feature(extern_types, sized_hierarchy)]
 
 use std::marker::{MetaSized, PointeeSized};

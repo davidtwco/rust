@@ -62,17 +62,36 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         }
 
         for unbound in unbounds {
-            if let Res::Def(DefKind::Trait, did) = unbound.trait_ref.path.res
-                && (did == sized_did)
-            {
+            let is_sized = matches!(unbound.trait_ref.path.res, Res::Def(DefKind::Trait, did) if did == sized_did);
+            let permit_sized_unbound =
+                !tcx.features().sized_hierarchy() || !tcx.sess.edition().at_least_edition_future();
+            if is_sized && permit_sized_unbound {
                 continue;
             }
 
-            self.dcx().span_err(
-                unbound.span,
-                "relaxing a default bound only does something for `?Sized`; all other traits \
-                 are not bound by default",
-            );
+            // There was a `?Trait` bound, but it was not `?Sized`.
+            if tcx.sess.edition().at_least_edition_future() && tcx.features().sized_hierarchy() {
+                let mut diag = self.dcx().struct_span_err(
+                    unbound.span,
+                    "relaxing a default bound is disallowed in Rust Future",
+                );
+                if is_sized {
+                    diag.help("`?Sized` is equivalent to a `std::marker::MetaSized` bound");
+                    diag.span_suggestion(
+                        unbound.span,
+                        "replace `?Sized` with `MetaSized`",
+                        "MetaSized",
+                        Applicability::MachineApplicable,
+                    );
+                }
+                diag.emit();
+            } else {
+                self.dcx().span_err(
+                    unbound.span,
+                    "relaxing a default bound only does something for `?Sized`; all other traits \
+                     are not bound by default",
+                );
+            }
         }
     }
 
