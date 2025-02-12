@@ -3,8 +3,6 @@
 //@ edition: future
 #![feature(extern_types, sized_hierarchy)]
 
-use std::marker::{MetaSized, PointeeSized};
-
 fn bare<T>() {}
 
 

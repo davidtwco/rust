@@ -1,5 +1,5 @@
 error[E0119]: conflicting implementations of trait `SizedTr` for type `X<_>`
-  --> $DIR/pretty-print.rs:22:1
+  --> $DIR/pretty-print.rs:23:1
    |
 LL | impl<T: Sized> SizedTr for X<T> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -9,7 +9,7 @@ LL | impl<T: Sized> SizedTr for X<T> {}
              where T: Sized;
 
 error[E0119]: conflicting implementations of trait `NegSizedTr` for type `X<_>`
-  --> $DIR/pretty-print.rs:26:1
+  --> $DIR/pretty-print.rs:27:1
    |
 LL | impl<T: ?Sized> pretty_print_dep::NegSizedTr for X<T> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -19,7 +19,7 @@ LL | impl<T: ?Sized> pretty_print_dep::NegSizedTr for X<T> {}
              where T: MetaSized;
 
 error[E0119]: conflicting implementations of trait `MetaSizedTr` for type `X<_>`
-  --> $DIR/pretty-print.rs:29:1
+  --> $DIR/pretty-print.rs:30:1
    |
 LL | impl<T: MetaSized> MetaSizedTr for X<T> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -29,7 +29,7 @@ LL | impl<T: MetaSized> MetaSizedTr for X<T> {}
              where T: MetaSized;
 
 error[E0119]: conflicting implementations of trait `PointeeSizedTr` for type `X<_>`
-  --> $DIR/pretty-print.rs:32:1
+  --> $DIR/pretty-print.rs:33:1
    |
 LL | impl<T: PointeeSized> PointeeSizedTr for X<T> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

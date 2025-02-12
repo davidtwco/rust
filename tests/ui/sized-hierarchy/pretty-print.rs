@@ -12,6 +12,7 @@
 // It isn't possible to write a test that matches the multiline note containing the important
 // diagnostic output being tested - so check the stderr changes carefully!
 
+#[cfg(not(future))]
 use std::marker::{MetaSized, PointeeSized};
 
 extern crate pretty_print_dep;
