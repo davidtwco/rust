@@ -183,7 +183,7 @@ mod sip;
 /// [impl]: ../../std/primitive.str.html#impl-Hash-for-str
 #[stable(feature = "rust1", since = "1.0.0")]
 #[rustc_diagnostic_item = "Hash"]
-pub trait Hash {
+pub trait Hash: marker::PointeeSized {
     /// Feeds this value into the given [`Hasher`].
     ///
     /// # Examples
@@ -941,7 +941,7 @@ mod impls {
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<T: ?Sized + Hash> Hash for &T {
+    impl<T: ?Sized + marker::PointeeSized + Hash> Hash for &T {
         #[inline]
         fn hash<H: Hasher>(&self, state: &mut H) {
             (**self).hash(state);
@@ -949,7 +949,7 @@ mod impls {
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<T: ?Sized + Hash> Hash for &mut T {
+    impl<T: ?Sized + marker::PointeeSized + Hash> Hash for &mut T {
         #[inline]
         fn hash<H: Hasher>(&self, state: &mut H) {
             (**self).hash(state);

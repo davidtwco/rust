@@ -36,6 +36,8 @@
 
 #![stable(feature = "rust1", since = "1.0.0")]
 
+use crate::marker::PointeeSized;
+
 mod uninit;
 
 /// A common trait for the ability to explicitly duplicate an object.
@@ -195,7 +197,7 @@ pub macro Clone($item:item) {
     reason = "deriving hack, should not be public",
     issue = "none"
 )]
-pub struct AssertParamIsClone<T: Clone + ?Sized> {
+pub struct AssertParamIsClone<T: Clone + ?Sized + PointeeSized> {
     _field: crate::marker::PhantomData<T>,
 }
 #[doc(hidden)]
@@ -205,7 +207,7 @@ pub struct AssertParamIsClone<T: Clone + ?Sized> {
     reason = "deriving hack, should not be public",
     issue = "none"
 )]
-pub struct AssertParamIsCopy<T: Copy + ?Sized> {
+pub struct AssertParamIsCopy<T: Copy + ?Sized + PointeeSized> {
     _field: crate::marker::PhantomData<T>,
 }
 
