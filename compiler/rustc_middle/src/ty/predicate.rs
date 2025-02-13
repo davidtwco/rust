@@ -613,6 +613,12 @@ impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyProjectionPredicate<'tcx>> for Clause<'t
     }
 }
 
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::HostEffectPredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: ty::HostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        ty::ClauseKind::HostEffect(from).upcast(tcx)
+    }
+}
+
 impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>>
     for Predicate<'tcx>
 {
@@ -621,6 +627,12 @@ impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::Binder<'tcx, ty::HostEffectPredicate<'tc
         tcx: TyCtxt<'tcx>,
     ) -> Self {
         from.map_bound(ty::ClauseKind::HostEffect).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::HostEffectPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: ty::HostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        ty::ClauseKind::HostEffect(from).upcast(tcx)
     }
 }
 

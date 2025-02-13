@@ -258,11 +258,11 @@ impl<I: Interner> FlagComputation<I> {
 
             ty::Infer(infer) => match infer {
                 ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_) => {
-                    self.add_flags(TypeFlags::HAS_TY_FRESH)
+                    self.add_flags(TypeFlags::HAS_TY_FRESH);
                 }
 
                 ty::TyVar(_) | ty::IntVar(_) | ty::FloatVar(_) => {
-                    self.add_flags(TypeFlags::HAS_TY_INFER)
+                    self.add_flags(TypeFlags::HAS_TY_INFER);
                 }
             },
 
