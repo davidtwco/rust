@@ -1064,6 +1064,7 @@ fn check_type_defn<'tcx>(
                     None,
                     tcx.type_of(field.did).instantiate_identity(),
                 );
+                // TODO(sized-hierarchy): require `const Sized` for fields
                 wfcx.register_bound(
                     traits::ObligationCause::new(
                         hir_ty.span,

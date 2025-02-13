@@ -3905,6 +3905,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
                     // Enums are anyway always sized. But just to safeguard against future
                     // language extensions, let's double-check.
+                    // TODO(sized-hierarchy): require `const Sized` for fields
                     self.require_type_is_sized(
                         field_ty,
                         expr.span,

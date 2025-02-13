@@ -3,18 +3,21 @@ use rustc_infer::infer::{BoundRegionConversionTime, DefineOpaqueTypes};
 use rustc_infer::traits::{
     ImplDerivedHostCause, ImplSource, Obligation, ObligationCauseCode, PredicateObligation,
 };
-use rustc_middle::span_bug;
 use rustc_middle::traits::query::NoSolution;
+use rustc_middle::ty::SizedTraitKind;
 use rustc_middle::ty::elaborate::elaborate;
 use rustc_middle::ty::fast_reject::DeepRejectCtxt;
 use rustc_middle::ty::{self, TypingMode};
+use rustc_middle::{bug, span_bug};
 use thin_vec::{ThinVec, thin_vec};
+use tracing::instrument;
 
 use super::SelectionContext;
 use super::normalize::normalize_with_depth_to;
 
 pub type HostEffectObligation<'tcx> = Obligation<'tcx, ty::HostEffectPredicate<'tcx>>;
 
+#[derive(Debug)]
 pub enum EvaluationFailure {
     Ambiguous,
     NoSolution,
@@ -303,7 +306,100 @@ fn evaluate_host_effect_from_builtin_impls<'tcx>(
 ) -> Result<ThinVec<PredicateObligation<'tcx>>, EvaluationFailure> {
     match selcx.tcx().as_lang_item(obligation.predicate.def_id()) {
         Some(LangItem::Destruct) => evaluate_host_effect_for_destruct_goal(selcx, obligation),
+        Some(LangItem::Sized) => {
+            evaluate_host_effect_for_sizedness_goal(selcx, obligation, SizedTraitKind::Sized)
+        }
+        Some(LangItem::MetaSized) => {
+            evaluate_host_effect_for_sizedness_goal(selcx, obligation, SizedTraitKind::MetaSized)
+        }
         _ => Err(EvaluationFailure::NoSolution),
+    }
+}
+
+// NOTE: Keep this in sync with `const_conditions_for_sizedness` in the new solver.
+#[instrument(level = "debug", skip(selcx), ret)]
+fn evaluate_host_effect_for_sizedness_goal<'tcx>(
+    selcx: &mut SelectionContext<'_, 'tcx>,
+    obligation: &HostEffectObligation<'tcx>,
+    sizedness: SizedTraitKind,
+) -> Result<ThinVec<PredicateObligation<'tcx>>, EvaluationFailure> {
+    let infcx = selcx.infcx;
+    let self_ty = infcx.shallow_resolve(obligation.predicate.self_ty());
+
+    match self_ty.kind() {
+        // impl const {Meta,}Sized for u*, i*, bool, f*, FnDef, FnPtr, *(const/mut) T, char
+        // impl const {Meta,}Sized for &mut? T, [T; N], dyn* Trait, !, Coroutine, CoroutineWitness
+        // impl const {Meta,}Sized for Closure, CoroutineClosure
+        ty::Infer(ty::IntVar(_) | ty::FloatVar(_))
+        | ty::Uint(_)
+        | ty::Int(_)
+        | ty::Bool
+        | ty::Float(_)
+        | ty::FnDef(..)
+        | ty::FnPtr(..)
+        | ty::RawPtr(..)
+        | ty::Char
+        | ty::Ref(..)
+        | ty::Coroutine(..)
+        | ty::CoroutineWitness(..)
+        | ty::Array(..)
+        | ty::Closure(..)
+        | ty::CoroutineClosure(..)
+        | ty::Never
+        | ty::Str
+        | ty::Slice(_)
+        | ty::Dynamic(..)
+        | ty::Foreign(..)
+        | ty::Error(_) => Ok(thin_vec![]),
+
+        // impl const {Meta,}Sized for ()
+        // impl const {Meta,}Sized for (T1, T2, .., Tn) where Tn: const {Meta,}Sized
+        ty::Tuple(tys) => {
+            if let Some(ty) = tys.last() {
+                Ok(thin_vec![
+                    obligation.with(infcx.tcx, obligation.predicate.with_self_ty(infcx.tcx, *ty))
+                ])
+            } else {
+                Ok(thin_vec![])
+            }
+        }
+
+        ty::Pat(ty, _) => Ok(thin_vec![
+            obligation.with(infcx.tcx, obligation.predicate.with_self_ty(infcx.tcx, *ty))
+        ]),
+
+        // impl const {Meta,}Sized for Adt where last_field(Adt): const {Meta,}Sized
+        //
+        // While no fields can be non-`const Sized` for a type to be considered `const Sized`,
+        // this builtin impl only checks the final field as that's the only place a
+        // non-`const Sized` field could hypothetically be permitted, much in the same way as with
+        // regular non-const sizedness. Checks for the other fields happen elsewhere.
+        ty::Adt(def, args) => {
+            if let Some(crit) = def.sizedness_constraint(infcx.tcx, sizedness) {
+                Ok(thin_vec![obligation.with(
+                    infcx.tcx,
+                    obligation.predicate.with_self_ty(infcx.tcx, crit.instantiate(infcx.tcx, args))
+                )])
+            } else {
+                Ok(thin_vec![])
+            }
+        }
+
+        // FIXME(unsafe_binders): This binder needs to be squashed
+        ty::UnsafeBinder(binder_ty) => Ok(thin_vec![obligation.with(
+            infcx.tcx,
+            binder_ty.map_bound(|ty| obligation.predicate.with_self_ty(infcx.tcx, ty))
+        )]),
+
+        ty::Alias(..)
+        | ty::Param(_)
+        | ty::Placeholder(..)
+        | ty::Bound(..)
+        | ty::Infer(ty::TyVar(_)) => Err(EvaluationFailure::NoSolution),
+
+        ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)) => {
+            bug!("asked to assemble builtin bounds of unexpected type: {:?}", self_ty)
+        }
     }
 }
 

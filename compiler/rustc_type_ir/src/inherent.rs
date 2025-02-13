@@ -615,6 +615,8 @@ pub trait AdtDef<I: Interner>: Copy + Debug + Hash + Eq {
         sizedness: SizedTraitKind,
     ) -> Option<ty::EarlyBinder<I, I::Ty>>;
 
+    fn has_trivial_non_const_sizedness(self) -> bool;
+
     fn is_fundamental(self) -> bool;
 
     fn destructor(self, interner: I) -> Option<AdtDestructorKind>;

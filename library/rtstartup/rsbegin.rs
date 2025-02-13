@@ -14,6 +14,7 @@
 
 #![feature(no_core)]
 #![feature(lang_items)]
+#![feature(const_trait_impl)]
 #![feature(auto_traits)]
 #![crate_type = "rlib"]
 #![no_core]
@@ -25,10 +26,12 @@
 pub trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 pub trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
-pub trait Sized: MetaSized {}
+#[const_trait]
+pub trait Sized: ~const MetaSized {}
 
 #[lang = "sync"]
 auto trait Sync {}

@@ -124,6 +124,8 @@ fn adt_sizedness_constraint<'tcx>(
 
     // perf hack: if there is a `constraint_ty: {Meta,}Sized` bound, then we know
     // that the type is sized and do not need to check it on the impl.
+    // TODO(sized-hierarchy): this is probably a problem when this function is being re-used by
+    // the builtin impl for host effect predicates too
     let sizedness_trait_def_id = sizedness.require_lang_item(tcx);
     let predicates = tcx.predicates_of(def.did()).predicates;
     if predicates.iter().any(|(p, _)| {

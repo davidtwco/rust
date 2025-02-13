@@ -183,6 +183,91 @@ where
     }
 }
 
+/// Returns the trait refs which need to hold for `self_ty`, with a given `sizedness` trait, to be
+/// `const` - can return `Err(NoSolution)` if the given `self_ty` cannot be const.
+///
+/// This only checks the conditions for constness, not the conditions for the given `sizedness`
+/// trait to be implemented (see the trait goal for that), as these are orthogonal. This means that
+/// the effect predicate can succeed while the trait predicate can fail - this is unintuitive but
+/// allows this function to be much simpler.
+// NOTE: Keep this in sync with `evaluate_host_effect_for_sizedness_goal` in the old solver.
+#[instrument(level = "trace", skip(cx), ret)]
+pub(in crate::solve) fn const_conditions_for_sizedness<I: Interner>(
+    cx: I,
+    self_ty: I::Ty,
+    sizedness: SizedTraitKind,
+) -> Result<Vec<ty::TraitRef<I>>, NoSolution> {
+    let did = sizedness.require_lang_item(cx);
+    match self_ty.kind() {
+        // impl const {Meta,}Sized for u*, i*, bool, f*, FnDef, FnPtr, *(const/mut) T, char
+        // impl const {Meta,}Sized for &mut? T, [T; N], dyn* Trait, !, Coroutine, CoroutineWitness
+        // impl const {Meta,}Sized for Closure, CoroutineClosure
+        ty::Infer(ty::IntVar(_) | ty::FloatVar(_))
+        | ty::Uint(_)
+        | ty::Int(_)
+        | ty::Bool
+        | ty::Float(_)
+        | ty::FnDef(..)
+        | ty::FnPtr(..)
+        | ty::RawPtr(..)
+        | ty::Char
+        | ty::Ref(..)
+        | ty::Coroutine(..)
+        | ty::CoroutineWitness(..)
+        | ty::Array(..)
+        | ty::Closure(..)
+        | ty::CoroutineClosure(..)
+        | ty::Never
+        | ty::Str
+        | ty::Slice(_)
+        | ty::Dynamic(..)
+        | ty::Foreign(..)
+        | ty::Error(_) => Ok(vec![]),
+
+        // impl const {Meta,}Sized for ()
+        // impl const {Meta,}Sized for (T1, T2, .., Tn) where Tn: const {Meta,}Sized
+        ty::Tuple(tys) => {
+            if let Some(ty) = tys.last() {
+                Ok(vec![ty::TraitRef::new(cx, did, [ty])])
+            } else {
+                Ok(vec![])
+            }
+        }
+
+        ty::Pat(ty, _) => Ok(vec![ty::TraitRef::new(cx, did, [ty])]),
+
+        // impl const {Meta,}Sized for Adt where last_field(Adt): const {Meta,}Sized
+        //
+        // While no fields can be non-`const Sized` for a type to be considered `const Sized`,
+        // this builtin impl only checks the final field as that's the only place a
+        // non-`const Sized` field could hyptohetically be permitted, much in the same way as with
+        // regular non-const sizedness. Checks for the other fields happen elsewhere.
+        ty::Adt(def, args) => {
+            if def.has_trivial_non_const_sizedness() {
+                Err(NoSolution)
+            } else if let Some(crit) = def.sizedness_constraint(cx, sizedness) {
+                Ok(vec![ty::TraitRef::new(cx, did, [crit.instantiate(cx, args)])])
+            } else {
+                Ok(vec![])
+            }
+        }
+
+        // FIXME(unsafe_binders): This binder needs to be squashed
+        // FIXME(sized-hierarchy): this is `Ok` on the old solver
+        ty::UnsafeBinder(_) => Err(NoSolution),
+
+        ty::Alias(..)
+        | ty::Param(_)
+        | ty::Placeholder(..)
+        | ty::Bound(..)
+        | ty::Infer(ty::TyVar(_)) => Err(NoSolution),
+
+        ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)) => {
+            panic!("asked to assemble builtin bounds of unexpected type: {:?}", self_ty)
+        }
+    }
+}
+
 #[instrument(level = "trace", skip(ecx), ret)]
 pub(in crate::solve) fn instantiate_constituent_tys_for_copy_clone_trait<D, I>(
     ecx: &EvalCtxt<'_, D>,
