@@ -7,8 +7,7 @@ use rustc_middle::traits::query::NoSolution;
 use rustc_middle::ty::SizedTraitKind;
 use rustc_middle::ty::elaborate::elaborate;
 use rustc_middle::ty::fast_reject::DeepRejectCtxt;
-use rustc_middle::ty::{self, TypingMode};
-use rustc_middle::{bug, span_bug};
+use rustc_middle::{bug, ty};
 use thin_vec::{ThinVec, thin_vec};
 use tracing::instrument;
 
@@ -27,13 +26,6 @@ pub fn evaluate_host_effect_obligation<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     obligation: &HostEffectObligation<'tcx>,
 ) -> Result<ThinVec<PredicateObligation<'tcx>>, EvaluationFailure> {
-    if matches!(selcx.infcx.typing_mode(), TypingMode::Coherence) {
-        span_bug!(
-            obligation.cause.span,
-            "should not select host obligation in old solver in intercrate mode"
-        );
-    }
-
     let ref obligation = selcx.infcx.resolve_vars_if_possible(obligation.clone());
 
     // Force ambiguity for infer self ty.
