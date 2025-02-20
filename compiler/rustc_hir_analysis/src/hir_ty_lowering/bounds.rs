@@ -162,8 +162,8 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         }
     }
 
-    /// Adds a `MetaSized` bound to `bounds` (of a trait definition) if there are no other sizedness
-    /// bounds. Also removes `PointeeSized` params - see doc comment on
+    /// Adds a `const MetaSized` bound to `bounds` (of a trait definition) if there are no other
+    /// sizedness bounds. Also removes `PointeeSized` params - see doc comment on
     /// `adjust_sizedness_predicates`.
     pub(crate) fn adjust_sizedness_supertraits(
         &self,
@@ -187,17 +187,24 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
 
         let (collected, _unbounds) = collect_sizedness_bounds(tcx, hir_bounds, None, span);
         if !collected.any() && trait_did != pointeesized_did {
-            // If there are no explicit sizedness bounds then add a default `MetaSized` supertrait.
+            // If there are no explicit sizedness bounds then add a default `const MetaSized`
+            // supertrait.
             let trait_ref = ty::TraitRef::new(tcx, metasized_did, [self_ty]);
             bounds.insert(0, (trait_ref.upcast(tcx), span));
+            let clause = ty::ClauseKind::HostEffect(ty::HostEffectPredicate {
+                trait_ref,
+                constness: ty::BoundConstness::Const,
+            })
+            .upcast(tcx);
+            bounds.insert(1, (clause, span));
         } else if collected.pointeesized.any() {
             // See doc comment on `adjust_sizedness_predicates`.
             remove_lang_item_bound(bounds, pointeesized_did);
         }
     }
 
-    /// Add a default `Sized` bound if there are no other sizedness bounds and rewrite `?Sized`
-    /// to `MetaSized`. Also removes `PointeeSized` params - see doc comment on
+    /// Add a default `const Sized` bound if there are no other sizedness bounds and rewrite
+    /// `?Sized` to `MetaSized`. Also removes `PointeeSized` params - see doc comment on
     /// `adjust_sizedness_predicates`.
     pub(crate) fn adjust_sizedness_params_and_assoc_types(
         &self,
@@ -222,16 +229,28 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             && !collected.metasized.any()
             && !collected.pointeesized.any()
         {
-            // `?Sized` is equivalent to `MetaSized` (but only add the bound if there aren't any
-            // other explicit ones)
+            // `?Sized` is equivalent to `const MetaSized` (but only add the bound if there aren't
+            // any other explicit ones)
             let trait_ref = ty::TraitRef::new(tcx, metasized_did, [self_ty]);
             bounds.insert(0, (trait_ref.upcast(tcx), span));
+            let clause = ty::ClauseKind::HostEffect(ty::HostEffectPredicate {
+                trait_ref,
+                constness: ty::BoundConstness::Const,
+            })
+            .upcast(tcx);
+            bounds.insert(1, (clause, span));
         } else if !collected.any() {
-            // If there are no explicit sizedness bounds then add a default `Sized` bound.
+            // If there are no explicit sizedness bounds then add a default `const Sized` bound.
             let trait_ref = ty::TraitRef::new(tcx, sized_did, [self_ty]);
             // Preferable to put this obligation first, since we report better errors for `Sized`
             // ambiguity.
             bounds.insert(0, (trait_ref.upcast(tcx), span));
+            let clause = ty::ClauseKind::HostEffect(ty::HostEffectPredicate {
+                trait_ref,
+                constness: ty::BoundConstness::Const,
+            })
+            .upcast(tcx);
+            bounds.insert(1, (clause, span));
         } else if collected.pointeesized.any() {
             // See doc comment on `adjust_sizedness_predicates`.
             remove_lang_item_bound(bounds, pointeesized_did);
