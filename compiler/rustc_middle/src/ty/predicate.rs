@@ -236,6 +236,15 @@ impl<'tcx> Clause<'tcx> {
             None
         }
     }
+
+    pub fn as_host_effect_clause(self) -> Option<ty::Binder<'tcx, HostEffectPredicate<'tcx>>> {
+        let clause = self.kind();
+        if let ty::ClauseKind::HostEffect(host_effect_clause) = clause.skip_binder() {
+            Some(clause.rebind(host_effect_clause))
+        } else {
+            None
+        }
+    }
 }
 
 impl<'tcx> rustc_type_ir::inherent::Clauses<TyCtxt<'tcx>> for ty::Clauses<'tcx> {}
