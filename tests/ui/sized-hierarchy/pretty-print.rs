@@ -4,7 +4,7 @@
 //@[e2024] edition: 2024
 //@[future] compile-flags: -Zunstable-options
 //@[future] edition: future
-#![feature(sized_hierarchy)]
+#![feature(const_trait_impl, sized_hierarchy)]
 
 // Test that printing the sizedness trait bounds in the conflicting impl error with
 // `sized_hierarchy` enabled prints all of the appropriate bounds.
@@ -16,9 +16,12 @@
 use std::marker::{MetaSized, PointeeSized};
 
 extern crate pretty_print_dep;
-use pretty_print_dep::{SizedTr, MetaSizedTr, PointeeSizedTr};
+use pretty_print_dep::{ConstSizedTr, SizedTr, ConstMetaSizedTr, MetaSizedTr, PointeeSizedTr};
 
 struct X<T>(T);
+
+impl<T: const Sized> ConstSizedTr for X<T> {}
+//~^ ERROR conflicting implementations of trait `ConstSizedTr` for type `X<_>`
 
 impl<T: Sized> SizedTr for X<T> {}
 //~^ ERROR conflicting implementations of trait `SizedTr` for type `X<_>`
@@ -26,6 +29,9 @@ impl<T: Sized> SizedTr for X<T> {}
 #[cfg(not(future))]
 impl<T: ?Sized> pretty_print_dep::NegSizedTr for X<T> {}
 //[e2024]~^ ERROR conflicting implementations of trait `NegSizedTr` for type `X<_>`
+
+impl<T: const MetaSized> ConstMetaSizedTr for X<T> {}
+//~^ ERROR conflicting implementations of trait `ConstMetaSizedTr` for type `X<_>`
 
 impl<T: MetaSized> MetaSizedTr for X<T> {}
 //~^ ERROR conflicting implementations of trait `MetaSizedTr` for type `X<_>`

@@ -1,5 +1,14 @@
-error[E0119]: conflicting implementations of trait `SizedTr` for type `X<_>`
+error[E0119]: conflicting implementations of trait `ConstSizedTr` for type `X<_>`
   --> $DIR/pretty-print.rs:23:1
+   |
+LL | impl<T: const Sized> ConstSizedTr for X<T> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: conflicting implementation in crate `pretty_print_dep`:
+           - impl<T> ConstSizedTr for T;
+
+error[E0119]: conflicting implementations of trait `SizedTr` for type `X<_>`
+  --> $DIR/pretty-print.rs:26:1
    |
 LL | impl<T: Sized> SizedTr for X<T> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -8,8 +17,18 @@ LL | impl<T: Sized> SizedTr for X<T> {}
            - impl<T> SizedTr for T
              where T: Sized;
 
+error[E0119]: conflicting implementations of trait `ConstMetaSizedTr` for type `X<_>`
+  --> $DIR/pretty-print.rs:33:1
+   |
+LL | impl<T: const MetaSized> ConstMetaSizedTr for X<T> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: conflicting implementation in crate `pretty_print_dep`:
+           - impl<T> ConstMetaSizedTr for T
+             where T: const MetaSized;
+
 error[E0119]: conflicting implementations of trait `MetaSizedTr` for type `X<_>`
-  --> $DIR/pretty-print.rs:30:1
+  --> $DIR/pretty-print.rs:36:1
    |
 LL | impl<T: MetaSized> MetaSizedTr for X<T> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -19,7 +38,7 @@ LL | impl<T: MetaSized> MetaSizedTr for X<T> {}
              where T: MetaSized;
 
 error[E0119]: conflicting implementations of trait `PointeeSizedTr` for type `X<_>`
-  --> $DIR/pretty-print.rs:33:1
+  --> $DIR/pretty-print.rs:39:1
    |
 LL | impl<T: PointeeSized> PointeeSizedTr for X<T> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -28,6 +47,6 @@ LL | impl<T: PointeeSized> PointeeSizedTr for X<T> {}
            - impl<T> PointeeSizedTr for T
              where T: PointeeSized;
 
-error: aborting due to 3 previous errors
+error: aborting due to 5 previous errors
 
 For more information about this error, try `rustc --explain E0119`.
