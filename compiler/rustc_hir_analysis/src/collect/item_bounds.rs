@@ -51,6 +51,7 @@ fn associated_type_bounds<'tcx>(
                     None,
                     None,
                     span,
+                    filter,
                 );
                 icx.lowerer().add_default_traits(&mut bounds, item_ty, hir_bounds, None, span);
             }
@@ -348,6 +349,7 @@ fn opaque_type_bounds<'tcx>(
                     None,
                     None,
                     span,
+                    filter,
                 );
                 icx.lowerer().add_default_traits(&mut bounds, item_ty, hir_bounds, None, span);
             }
