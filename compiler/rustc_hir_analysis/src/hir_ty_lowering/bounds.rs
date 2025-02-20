@@ -25,6 +25,8 @@ use crate::hir_ty_lowering::{
 
 #[derive(Debug, Default)]
 struct CollectedBound {
+    /// `const Trait`
+    constness: bool,
     /// `Trait`
     positive: bool,
     /// `?Trait`
@@ -109,6 +111,11 @@ fn collect_bounds<'a, 'tcx>(
             return;
         }
 
+        collect_into.constness = matches!(
+            ptr.modifiers.constness,
+            hir::BoundConstness::Always(_) | hir::BoundConstness::Maybe(_)
+        );
+
         match ptr.modifiers.polarity {
             hir::BoundPolarity::Maybe(_) => collect_into.maybe = true,
             hir::BoundPolarity::Negative(_) => collect_into.negative = true,
@@ -136,8 +143,8 @@ fn collect_sizedness_bounds<'tcx>(
     CollectedSizednessBounds { sized, meta_sized, pointee_sized }
 }
 
-/// Add a trait bound for `did`.
-fn add_trait_bound<'tcx>(
+/// Add a trait predicate for `did`.
+fn add_trait_predicate<'tcx>(
     tcx: TyCtxt<'tcx>,
     bounds: &mut Vec<(ty::Clause<'tcx>, Span)>,
     self_ty: Ty<'tcx>,
@@ -148,6 +155,31 @@ fn add_trait_bound<'tcx>(
     // Preferable to put sizedness obligations first, since we report better errors for `Sized`
     // ambiguity.
     bounds.insert(0, (trait_ref.upcast(tcx), span));
+}
+
+/// Add a host effect predicate for `did`.
+fn add_host_effect_predicate<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    bounds: &mut Vec<(ty::Clause<'tcx>, Span)>,
+    self_ty: Ty<'tcx>,
+    did: DefId,
+    span: Span,
+    filter: PredicateFilter,
+) {
+    if matches!(
+        filter,
+        PredicateFilter::All
+            | PredicateFilter::SelfOnly
+            | PredicateFilter::SelfAndAssociatedTypeBounds
+    ) {
+        let trait_ref = ty::TraitRef::new(tcx, did, [self_ty]);
+        let clause = ty::ClauseKind::HostEffect(ty::HostEffectPredicate {
+            trait_ref,
+            constness: ty::BoundConstness::Const,
+        })
+        .upcast(tcx);
+        bounds.insert(1, (clause, span));
+    }
 }
 
 impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
@@ -169,14 +201,37 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             .unwrap_or(false)
     }
 
+    /// Given a `PolyTraitRef` being lowered, returns the constness it should be lowered with so
+    /// that `Sized` is migrated to `const Sized`.
+    pub(crate) fn migrate_sized_constness<'hir>(
+        &self,
+        ptr: &PolyTraitRef<'hir>,
+    ) -> hir::BoundConstness {
+        if let hir::BoundConstness::Always(..) | hir::BoundConstness::Maybe(..) =
+            ptr.modifiers.constness
+        {
+            return ptr.modifiers.constness;
+        }
+
+        let tcx = self.tcx();
+        if let Some(trait_did) = ptr.trait_ref.trait_def_id()
+            && tcx.is_lang_item(trait_did, LangItem::Sized)
+            && ptr.modifiers.polarity == hir::BoundPolarity::Positive
+        {
+            hir::BoundConstness::Always(ptr.span)
+        } else {
+            ptr.modifiers.constness
+        }
+    }
+
     /// Adds sizedness bounds to a trait, trait alias, parameter, opaque type or associated type.
     ///
-    /// - On parameters, opaque type and associated types, add default `Sized` bound if no explicit
+    /// - On parameters, opaque type and associated types, add default `const Sized` bound if no
+    ///   explicit sizedness bounds are present.
+    /// - On traits and trait aliases, add default `const MetaSized` supertrait if no explicit
     ///   sizedness bounds are present.
-    /// - On traits and trait aliases, add default `MetaSized` supertrait if no explicit sizedness
-    ///   bounds are present.
-    /// - On parameters, opaque type, associated types and trait aliases, add a `MetaSized` bound if
-    ///   a `?Sized` bound is present.
+    /// - On parameters, opaque type, associated types and trait aliases, add a `const MetaSized`
+    ///   bound if a `?Sized` bound is present.
     pub(crate) fn add_sizedness_bounds(
         &self,
         bounds: &mut Vec<(ty::Clause<'tcx>, Span)>,
@@ -185,6 +240,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         self_ty_where_predicates: Option<(LocalDefId, &'tcx [hir::WherePredicate<'tcx>])>,
         trait_did: Option<LocalDefId>,
         span: Span,
+        filter: PredicateFilter,
     ) {
         let tcx = self.tcx();
 
@@ -220,19 +276,22 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             && !collected.meta_sized.any()
             && !collected.pointee_sized.any()
         {
-            // `?Sized` is equivalent to `MetaSized` (but only add the bound if there aren't any
-            // other explicit ones) - this can happen for trait aliases as well as bounds.
-            add_trait_bound(tcx, bounds, self_ty, meta_sized_did, span);
+            // `?Sized` is equivalent to `const MetaSized` (but only add the bound if there aren't
+            // any other explicit ones) - this can happen for trait aliases as well as bounds.
+            add_trait_predicate(tcx, bounds, self_ty, meta_sized_did, span);
+            add_host_effect_predicate(tcx, bounds, self_ty, meta_sized_did, span, filter);
         } else if !collected.any() {
             if trait_did.is_some() {
                 // If there are no explicit sizedness bounds on a trait then add a default
-                // `MetaSized` supertrait.
-                add_trait_bound(tcx, bounds, self_ty, meta_sized_did, span);
+                // `const MetaSized` supertrait.
+                add_trait_predicate(tcx, bounds, self_ty, meta_sized_did, span);
+                add_host_effect_predicate(tcx, bounds, self_ty, meta_sized_did, span, filter);
             } else {
                 // If there are no explicit sizedness bounds on a parameter then add a default
-                // `Sized` bound.
+                // `const Sized` bound.
                 let sized_did = tcx.require_lang_item(LangItem::Sized, span);
-                add_trait_bound(tcx, bounds, self_ty, sized_did, span);
+                add_trait_predicate(tcx, bounds, self_ty, sized_did, span);
+                add_host_effect_predicate(tcx, bounds, self_ty, sized_did, span, filter);
             }
         }
     }
@@ -415,7 +474,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         if let Some(trait_id) = trait_id
             && self.should_add_default_traits(trait_id, hir_bounds, self_ty_where_predicates)
         {
-            add_trait_bound(tcx, bounds, self_ty, trait_id, span);
+            add_trait_predicate(tcx, bounds, self_ty, trait_id, span);
         }
     }
 
@@ -482,7 +541,9 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
 
             match hir_bound {
                 hir::GenericBound::Trait(poly_trait_ref) => {
-                    let hir::TraitBoundModifiers { constness, polarity } = poly_trait_ref.modifiers;
+                    let hir::TraitBoundModifiers { constness: _, polarity } =
+                        poly_trait_ref.modifiers;
+                    let constness = self.migrate_sized_constness(poly_trait_ref);
                     let _ = self.lower_poly_trait_ref(
                         &poly_trait_ref.trait_ref,
                         poly_trait_ref.span,

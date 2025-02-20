@@ -198,6 +198,7 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
             None,
             Some(def_id),
             span,
+            PredicateFilter::All,
         );
         icx.lowerer().add_default_super_traits(
             def_id,
@@ -238,6 +239,7 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
                     Some((param.def_id, hir_generics.predicates)),
                     None,
                     param.span,
+                    PredicateFilter::All,
                 );
                 icx.lowerer().add_default_traits(
                     &mut bounds,
@@ -667,6 +669,7 @@ pub(super) fn implied_predicates_with_filter<'tcx>(
                 None,
                 Some(trait_def_id),
                 item.span,
+                filter,
             );
             icx.lowerer().add_default_super_traits(
                 trait_def_id,
