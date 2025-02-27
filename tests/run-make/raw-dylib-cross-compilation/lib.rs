@@ -1,4 +1,4 @@
-#![feature(no_core, lang_items)]
+#![feature(no_core, lang_items, const_trait_impl)]
 #![no_std]
 #![no_core]
 #![crate_type = "lib"]
@@ -7,9 +7,11 @@
 #[lang = "pointee_sized"]
 trait PointeeSized {}
 #[lang = "meta_sized"]
+#[const_trait]
 trait MetaSized: PointeeSized {}
 #[lang = "sized"]
-trait Sized: MetaSized {}
+#[const_trait]
+trait Sized: ~const MetaSized {}
 
 #[link(name = "extern_1", kind = "raw-dylib")]
 extern "C" {

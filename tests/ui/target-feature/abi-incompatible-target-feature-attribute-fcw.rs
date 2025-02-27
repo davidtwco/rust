@@ -1,7 +1,7 @@
 //@ compile-flags: --crate-type=lib
 //@ compile-flags: --target=aarch64-unknown-none-softfloat
 //@ needs-llvm-components: aarch64
-#![feature(no_core, lang_items)]
+#![feature(no_core, lang_items, const_trait_impl)]
 #![no_core]
 #![deny(aarch64_softfloat_neon)]
 
@@ -9,10 +9,12 @@
 pub trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 pub trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
-pub trait Sized: MetaSized {}
+#[const_trait]
+pub trait Sized: ~const MetaSized {}
 
 #[target_feature(enable = "neon")]
 //~^ERROR: enabling the `neon` target feature on the current target is unsound

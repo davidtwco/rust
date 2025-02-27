@@ -4,17 +4,19 @@
 
 #![allow(internal_features)]
 #![crate_type = "rlib"]
-#![feature(no_core, lang_items)]
+#![feature(no_core, lang_items, const_trait_impl)]
 #![no_core]
 
 #[lang = "pointee_sized"]
 trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
-trait Sized: MetaSized {}
+#[const_trait]
+trait Sized: ~const MetaSized {}
 
 #[no_mangle]
 pub fn foo() {}

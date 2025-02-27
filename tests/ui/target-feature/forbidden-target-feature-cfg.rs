@@ -2,7 +2,7 @@
 //@ compile-flags: --target=riscv32e-unknown-none-elf --crate-type=lib
 //@ needs-llvm-components: riscv
 //@ check-pass
-#![feature(no_core, lang_items)]
+#![feature(no_core, lang_items, const_trait_impl)]
 #![no_core]
 #![allow(unexpected_cfgs)]
 
@@ -10,10 +10,12 @@
 pub trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 pub trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
-pub trait Sized: MetaSized {}
+#[const_trait]
+pub trait Sized: ~const MetaSized {}
 
 // The compile_error macro does not exist, so if the `cfg` evaluates to `true` this
 // complains about the missing macro rather than showing the error... but that's good enough.

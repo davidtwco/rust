@@ -3,7 +3,7 @@
 
 // Emscripten catch_unwind using wasm exceptions
 
-#![feature(no_core, lang_items, intrinsics, rustc_attrs)]
+#![feature(no_core, lang_items, intrinsics, rustc_attrs, const_trait_impl)]
 #![crate_type = "lib"]
 #![no_std]
 #![no_core]
@@ -12,10 +12,12 @@
 pub trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 pub trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
-pub trait Sized: MetaSized {}
+#[const_trait]
+pub trait Sized: ~const MetaSized {}
 #[lang = "freeze"]
 trait Freeze {}
 #[lang = "copy"]

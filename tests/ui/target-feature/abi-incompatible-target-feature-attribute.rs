@@ -6,17 +6,19 @@
 //@[x86] needs-llvm-components: x86
 //@[riscv] compile-flags: --target=riscv32e-unknown-none-elf
 //@[riscv] needs-llvm-components: riscv
-#![feature(no_core, lang_items, riscv_target_feature, x87_target_feature)]
+#![feature(no_core, lang_items, riscv_target_feature, x87_target_feature, const_trait_impl)]
 #![no_core]
 
 #[lang = "pointee_sized"]
 pub trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 pub trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
-pub trait Sized {}
+#[const_trait]
+pub trait Sized: ~const MetaSized {}
 
 #[cfg_attr(x86, target_feature(enable = "soft-float"))] #[cfg_attr(riscv, target_feature(enable = "d"))]
 //~^ERROR: cannot be enabled with

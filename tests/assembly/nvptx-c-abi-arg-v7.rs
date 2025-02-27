@@ -7,15 +7,17 @@
 
 // CHECK: .version 7
 
-#![feature(abi_ptx, lang_items, no_core)]
+#![feature(abi_ptx, lang_items, const_trait_impl, no_core)]
 #![no_core]
 
 #[lang = "pointee_sized"]
 trait PointeeSized {}
 #[lang = "meta_sized"]
+#[const_trait]
 trait MetaSized: PointeeSized {}
 #[lang = "sized"]
-trait Sized: MetaSized {}
+#[const_trait]
+trait Sized: ~const MetaSized {}
 #[lang = "copy"]
 trait Copy {}
 

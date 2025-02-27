@@ -11,7 +11,7 @@ LL | #[lang = "meta_sized"]
    | ^^^^^^^^^^^^^^^^^^^^^^
 
 error: lang items are not allowed in stable dylibs
-  --> $DIR/lang-item.rs:14:1
+  --> $DIR/lang-item.rs:15:1
    |
 LL | #[lang = "sized"]
    | ^^^^^^^^^^^^^^^^^

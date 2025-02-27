@@ -12,14 +12,16 @@
 //@[x86-32-nosse] compile-flags: --target i586-unknown-linux-gnu
 //@[x86-32-nosse] needs-llvm-components: x86
 
-#![feature(no_core, lang_items, rustc_attrs, repr_simd)]
+#![feature(no_core, lang_items, const_trait_impl, rustc_attrs, repr_simd)]
 #![no_core]
 #![crate_type = "lib"]
 
 #[lang = "sized"]
-trait Sized: MetaSized {}
+#[const_trait]
+trait Sized: ~const MetaSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 trait MetaSized: PointeeSized {}
 
 #[lang = "pointee_sized"]

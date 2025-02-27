@@ -17,14 +17,16 @@
 //@ [riscv64] compile-flags: --target=riscv64gc-unknown-none-elf --crate-type=rlib
 
 #![crate_type = "lib"]
-#![feature(no_core, lang_items)]
+#![feature(no_core, lang_items, const_trait_impl)]
 #![no_core]
 
 #[lang = "pointee_sized"]
 trait PointeeSized {}
 #[lang = "meta_sized"]
+#[const_trait]
 trait MetaSized: PointeeSized {}
 #[lang = "sized"]
-trait Sized: MetaSized {}
+#[const_trait]
+trait Sized: ~const MetaSized {}
 
 //~? ERROR the `-Zfixed-x18` flag is not supported on the `
