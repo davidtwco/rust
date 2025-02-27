@@ -1,5 +1,5 @@
 #![feature(no_core, intrinsics, lang_items)]
-#![feature(adt_const_params)]
+#![feature(adt_const_params, const_trait_impl)]
 #![crate_type = "rlib"]
 #![no_core]
 
@@ -20,9 +20,11 @@ unsafe fn atomic_xadd<T, const ORD: AtomicOrdering>(dst: *mut T, src: T) -> T;
 pub trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 pub trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
+#[const_trait]
 pub trait Sized: MetaSized {}
 #[lang = "copy"]
 trait Copy {}
