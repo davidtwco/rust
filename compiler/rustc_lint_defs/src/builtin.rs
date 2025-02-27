@@ -99,6 +99,7 @@ declare_lint_pass! {
         SELF_CONSTRUCTOR_FROM_OUTER_ITEM,
         SEMICOLON_IN_EXPRESSIONS_FROM_MACROS,
         SINGLE_USE_LIFETIMES,
+        SIZED_HIERARCHY_MIGRATION,
         SOFT_UNSTABLE,
         STABLE_FEATURES,
         SUPERTRAIT_ITEM_SHADOWING_DEFINITION,
@@ -5213,5 +5214,90 @@ declare_lint! {
     @future_incompatible = FutureIncompatibleInfo {
         reason: FutureIncompatibilityReason::FutureReleaseErrorReportInDeps,
         reference: "issue #116558 <https://github.com/rust-lang/rust/issues/116558>",
+    };
+}
+
+declare_lint! {
+    /// The `sized_hierarchy_migration` lint detects uses of the `Sized` trait which must be
+    /// migrated with the introduction of a hierarchy of sizedness traits.
+    ///
+    /// ### Example
+    /// ```rust,edition_2024,compile_fail
+    /// #![deny(sized_hierarchy_migration)]
+    ///
+    /// pub fn foo<T: ?Sized>() {}
+    /// ```
+    ///
+    /// ```text
+    /// error: `?Sized` bound relaxations are being migrated to `const MetaSized`
+    ///   --> lint_example.rs:3:14
+    ///    |
+    /// LL | pub fn foo<T: ?Sized>() {
+    ///    |               ^^^^^^ help: replace `?Sized` with `const MetaSized`: `const MetaSized`
+    ///    |
+    ///    = warning: this is accepted in the current edition (Rust 2024) but is a hard error in Rust future!
+    ///    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-future/sized-hierarchy.html>
+    /// ```
+    ///
+    /// ```rust,edition_2024,compile_fail
+    /// #![deny(sized_hierarchy_migration)]
+    ///
+    /// pub fn foo<T>() {}
+    ///
+    /// pub fn bar<T: Sized>() {}
+    /// ```
+    ///
+    /// ```text
+    /// error: default bounds are being migrated to `const Sized`
+    ///   --> lint_example.rs:3:14
+    ///    |
+    /// LL | pub fn foo<T>() {
+    ///    |            ^- help: add `const Sized`: `: const Sized`
+    ///    |
+    ///    = warning: this is accepted in the current edition (Rust 2024) but is a hard error in Rust future!
+    ///    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-future/sized-hierarchy.html>
+    ///
+    /// error: `Sized` bounds are being migrated to `const Sized`
+    ///   --> lint_example.rs:5:14
+    ///    |
+    /// LL | pub fn bar<T: Sized>() {
+    ///    |               ^^^^^ help: replace `Sized` with `const Sized`: `const Sized`
+    ///    |
+    ///    = warning: this is accepted in the current edition (Rust 2024) but is a hard error in Rust future!
+    ///    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-future/sized-hierarchy.html>
+    /// ```
+    ///
+    /// ```rust,edition_2024,compile_fail
+    /// #![deny(sized_hierarchy_migration)]
+    ///
+    /// pub trait Foo {}
+    /// ```
+    ///
+    /// ```text
+    /// error: a `const MetaSized` supertrait is required to maintain backwards compatibility
+    ///   --> lint_example.rs:3:1
+    ///    |
+    /// LL | pub trait Foo {
+    ///    | ^^^^^^^^^^^^^- help: add an explicit `const MetaSized` supertrait: `: const MetaSized`
+    ///    |
+    ///    = warning: this is accepted in the current edition (Rust 2024) but is a hard error in Rust future!
+    ///    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-future/sized-hierarchy.html>
+    /// ```
+    ///
+    /// ### Explanation
+    /// In order to preserve backwards compatibility when a hierarchy of sizedness traits is
+    /// introduced, various migrations are necessary:
+    ///
+    /// - `Sized` becomes `const Sized`
+    /// - `?Sized` becomes `const MetaSized`
+    /// - Traits have a `const MetaSized` supertrait
+    ///
+    /// See [RFC #3729](https://github.com/rust-lang/rfcs/pull/3729) for more details.
+    pub SIZED_HIERARCHY_MIGRATION,
+    Warn,
+    "a default supertrait is being added to maintain backwards compatibility",
+    @future_incompatible = FutureIncompatibleInfo {
+        reason: FutureIncompatibilityReason::EditionError(Edition::EditionFuture),
+        reference: "<https://doc.rust-lang.org/nightly/edition-guide/rust-future/sized-hierarchy.html>",
     };
 }
