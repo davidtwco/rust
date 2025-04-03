@@ -72,7 +72,7 @@ impl<'tcx> FunctionItemRefChecker<'_, 'tcx> {
         source_info: SourceInfo,
     ) {
         let param_env = self.tcx.param_env(def_id);
-        let bounds = param_env.caller_bounds();
+        let bounds = param_env.trait_clauses();
         for bound in bounds {
             if let Some(bound_ty) = self.is_pointer_trait(bound) {
                 // Get the argument types as they appear in the function signature.
@@ -106,14 +106,10 @@ impl<'tcx> FunctionItemRefChecker<'_, 'tcx> {
     }
 
     /// If the given predicate is the trait `fmt::Pointer`, returns the bound parameter type.
-    fn is_pointer_trait(&self, bound: ty::Clause<'tcx>) -> Option<Ty<'tcx>> {
-        if let ty::ClauseKind::Trait(predicate) = bound.kind().skip_binder() {
-            self.tcx
-                .is_diagnostic_item(sym::Pointer, predicate.def_id())
-                .then(|| predicate.trait_ref.self_ty())
-        } else {
-            None
-        }
+    fn is_pointer_trait(&self, predicate: ty::PolyTraitPredicate<'tcx>) -> Option<Ty<'tcx>> {
+        self.tcx
+            .is_diagnostic_item(sym::Pointer, predicate.def_id())
+            .then(|| predicate.skip_binder().self_ty())
     }
 
     /// If a type is a reference or raw pointer to the anonymous type of a function definition,

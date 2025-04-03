@@ -329,6 +329,15 @@ impl<I: Interner, T: TypeFoldable<I>> TypeFoldable<I> for ThinVec<T> {
     }
 }
 
+impl<A: smallvec::Array, I: Interner> TypeFoldable<I> for smallvec::SmallVec<A>
+where
+    <A as smallvec::Array>::Item: TypeFoldable<I>,
+{
+    fn try_fold_with<F: FallibleTypeFolder<I>>(self, folder: &mut F) -> Result<Self, F::Error> {
+        self.into_iter().map(|t| t.try_fold_with(folder)).collect()
+    }
+}
+
 impl<I: Interner, T: TypeFoldable<I>> TypeFoldable<I> for Box<[T]> {
     fn try_fold_with<F: FallibleTypeFolder<I>>(self, folder: &mut F) -> Result<Self, F::Error> {
         Vec::from(self).try_fold_with(folder).map(Vec::into_boxed_slice)

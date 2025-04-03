@@ -52,6 +52,7 @@ use rustc_span::{ExpnId, ExpnKind, Ident, Span, Symbol, kw, sym};
 pub use rustc_type_ir::relate::VarianceDiagInfo;
 pub use rustc_type_ir::solve::SizedTraitKind;
 pub use rustc_type_ir::*;
+use smallvec::SmallVec;
 use tracing::{debug, instrument};
 pub use vtable::*;
 use {rustc_ast as ast, rustc_attr_data_structures as attr, rustc_hir as hir};
@@ -80,10 +81,12 @@ pub use self::predicate::{
     AliasTerm, Clause, ClauseKind, CoercePredicate, ExistentialPredicate,
     ExistentialPredicateStableCmpExt, ExistentialProjection, ExistentialTraitRef,
     HostEffectPredicate, NormalizesTo, OutlivesPredicate, PolyCoercePredicate,
-    PolyExistentialPredicate, PolyExistentialProjection, PolyExistentialTraitRef,
+    PolyConstArgHasTypePredicate, PolyConstEvaluatablePredicate, PolyExistentialPredicate,
+    PolyExistentialProjection, PolyExistentialTraitRef, PolyHostEffectPredicate,
     PolyProjectionPredicate, PolyRegionOutlivesPredicate, PolySubtypePredicate, PolyTraitPredicate,
-    PolyTraitRef, PolyTypeOutlivesPredicate, Predicate, PredicateKind, ProjectionPredicate,
-    RegionOutlivesPredicate, SubtypePredicate, TraitPredicate, TraitRef, TypeOutlivesPredicate,
+    PolyTraitRef, PolyTypeOutlivesPredicate, PolyWellFormedPredicate, Predicate, PredicateKind,
+    ProjectionPredicate, RegionOutlivesPredicate, SubtypePredicate, TraitPredicate, TraitRef,
+    TypeOutlivesPredicate,
 };
 pub use self::region::{
     BoundRegion, BoundRegionKind, EarlyParamRegion, LateParamRegion, LateParamRegionKind, Region,
@@ -848,22 +851,19 @@ pub struct Placeholder<T> {
 }
 impl Placeholder<BoundVar> {
     pub fn find_const_ty_from_env<'tcx>(self, env: ParamEnv<'tcx>) -> Ty<'tcx> {
-        let mut candidates = env.caller_bounds().iter().filter_map(|clause| {
-            // `ConstArgHasType` are never desugared to be higher ranked.
-            match clause.kind().skip_binder() {
-                ty::ClauseKind::ConstArgHasType(placeholder_ct, ty) => {
-                    assert!(!(placeholder_ct, ty).has_escaping_bound_vars());
+        let mut candidates = env.const_arg_has_type_clauses().map(|c| c.skip_binder()).filter_map(
+            |(placeholder_ct, ty)| {
+                // `ConstArgHasType` are never desugared to be higher ranked.
+                assert!(!(placeholder_ct, ty).has_escaping_bound_vars());
 
-                    match placeholder_ct.kind() {
-                        ty::ConstKind::Placeholder(placeholder_ct) if placeholder_ct == self => {
-                            Some(ty)
-                        }
-                        _ => None,
+                match placeholder_ct.kind() {
+                    ty::ConstKind::Placeholder(placeholder_ct) if placeholder_ct == self => {
+                        Some(ty)
                     }
+                    _ => None,
                 }
-                _ => None,
-            }
-        });
+            },
+        );
 
         let ty = candidates.next().unwrap();
         assert!(candidates.next().is_none());
@@ -950,27 +950,49 @@ impl<'tcx> rustc_type_ir::Flags for Clauses<'tcx> {
     }
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(HashStable, TypeVisitable, TypeFoldable)]
+pub struct ParamEnvClauses<'tcx> {
+    /// Corresponds to `where Foo: Bar<A, B, C>`. `Foo` here would be
+    /// the `Self` type of the trait reference and `A`, `B`, and `C`
+    /// would be the type parameters.
+    trait_clauses: SmallVec<[PolyTraitPredicate<'tcx>; 4]>,
+    /// `where 'a: 'r`
+    region_outlives_clauses: SmallVec<[PolyRegionOutlivesPredicate<'tcx>; 4]>,
+    /// `where T: 'r`
+    type_outlives_clauses: SmallVec<[PolyTypeOutlivesPredicate<'tcx>; 4]>,
+    /// `where <T as TraitRef>::Name == X`, approximately.
+    /// See the `ProjectionPredicate` struct for details.
+    projection_clauses: SmallVec<[PolyProjectionPredicate<'tcx>; 4]>,
+    /// Ensures that a const generic argument to a parameter `const N: u8`
+    /// is of type `u8`.
+    const_arg_has_type_clauses: SmallVec<[PolyConstArgHasTypePredicate<'tcx>; 4]>,
+    /// No syntax: `T` well-formed.
+    well_formed_clauses: SmallVec<[PolyWellFormedPredicate<'tcx>; 4]>,
+    /// Constant initializer must evaluate successfully.
+    const_evaluatable_clauses: SmallVec<[PolyConstEvaluatablePredicate<'tcx>; 4]>,
+    /// Enforces the constness of the predicate we're calling. Like a projection
+    /// goal from a where clause, it's always going to be paired with a
+    /// corresponding trait clause; this just enforces the *constness* of that
+    /// implementation.
+    host_effect_clauses: SmallVec<[PolyHostEffectPredicate<'tcx>; 4]>,
+}
+
 /// When interacting with the type system we must provide information about the
 /// environment. `ParamEnv` is the type that represents this information. See the
 /// [dev guide chapter][param_env_guide] for more information.
 ///
 /// [param_env_guide]: https://rustc-dev-guide.rust-lang.org/typing_parameter_envs.html
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-#[derive(HashStable, TypeVisitable, TypeFoldable)]
-pub struct ParamEnv<'tcx> {
+#[derive(HashStable)]
+pub struct ParamEnv<'tcx>(
     /// Caller bounds are `Obligation`s that the caller must satisfy. This is
     /// basically the set of bounds on the in-scope type parameters, translated
     /// into `Obligation`s, and elaborated and normalized.
     ///
     /// Use the `caller_bounds()` method to access.
-    caller_bounds: Clauses<'tcx>,
-}
-
-impl<'tcx> rustc_type_ir::inherent::ParamEnv<TyCtxt<'tcx>> for ParamEnv<'tcx> {
-    fn caller_bounds(self) -> impl inherent::SliceLike<Item = ty::Clause<'tcx>> {
-        self.caller_bounds()
-    }
-}
+    Interned<'tcx, ParamEnvClauses<'tcx>>,
+);
 
 impl<'tcx> ParamEnv<'tcx> {
     /// Construct a trait environment suitable for contexts where there are
@@ -980,24 +1002,214 @@ impl<'tcx> ParamEnv<'tcx> {
     ///
     /// [param_env_guide]: https://rustc-dev-guide.rust-lang.org/typing_parameter_envs.html
     #[inline]
-    pub fn empty() -> Self {
-        Self::new(ListWithCachedTypeInfo::empty())
-    }
-
-    #[inline]
-    pub fn caller_bounds(self) -> Clauses<'tcx> {
-        self.caller_bounds
-    }
-
-    /// Construct a trait environment with the given set of predicates.
-    #[inline]
-    pub fn new(caller_bounds: Clauses<'tcx>) -> Self {
-        ParamEnv { caller_bounds }
+    pub fn empty(tcx: TyCtxt<'tcx>) -> Self {
+        tcx.mk_param_env(ParamEnvClauses {
+            trait_clauses: SmallVec::new(),
+            region_outlives_clauses: SmallVec::new(),
+            type_outlives_clauses: SmallVec::new(),
+            projection_clauses: SmallVec::new(),
+            const_arg_has_type_clauses: SmallVec::new(),
+            well_formed_clauses: SmallVec::new(),
+            const_evaluatable_clauses: SmallVec::new(),
+            host_effect_clauses: SmallVec::new(),
+        })
     }
 
     /// Creates a pair of param-env and value for use in queries.
     pub fn and<T: TypeVisitable<TyCtxt<'tcx>>>(self, value: T) -> ParamEnvAnd<'tcx, T> {
         ParamEnvAnd { param_env: self, value }
+    }
+
+    /// Create a `ParamEnv` from clauses.
+    #[inline]
+    pub fn from_clauses(tcx: TyCtxt<'tcx>, clauses: &[Clause<'tcx>]) -> Self {
+        Self::from_clauses_iter(tcx, clauses.iter().map(|c| *c))
+    }
+
+    /// Create a `ParamEnv` from iterator of clauses.
+    #[inline]
+    pub fn from_clauses_iter<Iter: Iterator<Item = Clause<'tcx>>>(
+        tcx: TyCtxt<'tcx>,
+        clauses: Iter,
+    ) -> Self {
+        let mut trait_clauses = SmallVec::new();
+        let mut region_outlives_clauses = SmallVec::new();
+        let mut type_outlives_clauses = SmallVec::new();
+        let mut projection_clauses = SmallVec::new();
+        let mut const_arg_has_type_clauses = SmallVec::new();
+        let mut well_formed_clauses = SmallVec::new();
+        let mut const_evaluatable_clauses = SmallVec::new();
+        let mut host_effect_clauses = SmallVec::new();
+
+        for clause in clauses {
+            let kind = clause.kind();
+            match kind.skip_binder() {
+                ClauseKind::Trait(trait_predicate) => {
+                    trait_clauses.push(kind.rebind(trait_predicate))
+                }
+                ClauseKind::RegionOutlives(region_outlives_predicate) => {
+                    region_outlives_clauses.push(kind.rebind(region_outlives_predicate))
+                }
+                ClauseKind::TypeOutlives(type_outlives_predicate) => {
+                    type_outlives_clauses.push(kind.rebind(type_outlives_predicate))
+                }
+                ClauseKind::Projection(projection_predicate) => {
+                    projection_clauses.push(kind.rebind(projection_predicate))
+                }
+                ClauseKind::ConstArgHasType(constant, ty) => {
+                    const_arg_has_type_clauses.push(kind.rebind((constant, ty)))
+                }
+                ClauseKind::WellFormed(generic_arg) => {
+                    well_formed_clauses.push(kind.rebind(generic_arg))
+                }
+                ClauseKind::ConstEvaluatable(constant) => {
+                    const_evaluatable_clauses.push(kind.rebind(constant))
+                }
+                ClauseKind::HostEffect(host_effect_predicate) => {
+                    host_effect_clauses.push(kind.rebind(host_effect_predicate))
+                }
+            }
+        }
+
+        let clauses = ParamEnvClauses {
+            trait_clauses,
+            region_outlives_clauses,
+            type_outlives_clauses,
+            projection_clauses,
+            const_arg_has_type_clauses,
+            well_formed_clauses,
+            const_evaluatable_clauses,
+            host_effect_clauses,
+        };
+        tcx.mk_param_env(clauses)
+    }
+
+    /// Returns iterator over all of the clauses contained within the `ParamEnv`, upcast to
+    /// `Clause`.
+    pub fn all_clauses(self, tcx: TyCtxt<'tcx>) -> impl Iterator<Item = Clause<'tcx>> {
+        let trait_clauses = self.trait_clauses().map(move |c| c.upcast(tcx));
+        let region_outlives_clauses = self.region_outlives_clauses().map(move |c| c.upcast(tcx));
+        let type_outlives_clauses = self.type_outlives_clauses().map(move |c| c.upcast(tcx));
+        let projection_clauses = self.projection_clauses().map(move |c| c.upcast(tcx));
+        let const_arg_has_type_clauses =
+            self.const_arg_has_type_clauses().map(move |c| c.upcast(tcx));
+        let well_formed_clauses = self.well_formed_clauses().map(move |c| c.upcast(tcx));
+        let const_evaluatable_clauses =
+            self.const_evaluatable_clauses().map(move |c| c.upcast(tcx));
+        let host_effect_clauses = self.host_effect_clauses().map(move |c| c.upcast(tcx));
+
+        trait_clauses.chain(region_outlives_clauses.chain(type_outlives_clauses.chain(
+            projection_clauses.chain(const_arg_has_type_clauses.chain(
+                well_formed_clauses.chain(const_evaluatable_clauses.chain(host_effect_clauses)),
+            )),
+        )))
+    }
+
+    /// Returns iterator over the `PolyTraitPredicate`s contained within this parameter environment.
+    #[inline]
+    pub fn trait_clauses(self) -> impl Iterator<Item = PolyTraitPredicate<'tcx>> {
+        self.0.0.trait_clauses.iter().copied()
+    }
+
+    /// Returns iterator over the `PolyRegionOutlivesPredicate`s contained within this parameter
+    /// environment.
+    #[inline]
+    pub fn region_outlives_clauses(
+        self,
+    ) -> impl Iterator<Item = PolyRegionOutlivesPredicate<'tcx>> {
+        self.0.0.region_outlives_clauses.iter().copied()
+    }
+
+    /// Returns iterator over the `PolyTypeOutlivesPredicate`s contained within this parameter
+    /// environment.
+    #[inline]
+    pub fn type_outlives_clauses(self) -> impl Iterator<Item = PolyTypeOutlivesPredicate<'tcx>> {
+        self.0.0.type_outlives_clauses.iter().copied()
+    }
+
+    /// Returns iterator over the `PolyProjectionPredicate`s contained within this parameter
+    /// environment.
+    #[inline]
+    pub fn projection_clauses(self) -> impl Iterator<Item = PolyProjectionPredicate<'tcx>> {
+        self.0.0.projection_clauses.iter().copied()
+    }
+
+    /// Returns iterator over the `PolyConstArgHasTypePredicate`s contained within this parameter
+    /// environment.
+    #[inline]
+    pub fn const_arg_has_type_clauses(
+        self,
+    ) -> impl Iterator<Item = PolyConstArgHasTypePredicate<'tcx>> {
+        self.0.0.const_arg_has_type_clauses.iter().copied()
+    }
+
+    /// Returns iterator over the `PolyWellFormedPredicate`s contained within this parameter
+    /// environment.
+    #[inline]
+    pub fn well_formed_clauses(self) -> impl Iterator<Item = PolyWellFormedPredicate<'tcx>> {
+        self.0.0.well_formed_clauses.iter().copied()
+    }
+
+    /// Returns iterator over the `PolyConstEvaluatablePredicate`s contained within this parameter
+    /// environment.
+    #[inline]
+    pub fn const_evaluatable_clauses(
+        self,
+    ) -> impl Iterator<Item = PolyConstEvaluatablePredicate<'tcx>> {
+        self.0.0.const_evaluatable_clauses.iter().copied()
+    }
+
+    /// Returns iterator over the `PolyHostEffectPredicate`s contained within this parameter
+    /// environment.
+    #[inline]
+    pub fn host_effect_clauses(self) -> impl Iterator<Item = PolyHostEffectPredicate<'tcx>> {
+        self.0.0.host_effect_clauses.iter().copied()
+    }
+}
+
+impl<'tcx> std::ops::Deref for ParamEnv<'tcx> {
+    type Target = ParamEnvClauses<'tcx>;
+
+    fn deref(&self) -> &ParamEnvClauses<'tcx> {
+        self.0.deref()
+    }
+}
+
+impl<'tcx> rustc_type_ir::inherent::ParamEnv<TyCtxt<'tcx>> for ParamEnv<'tcx> {
+    fn trait_clauses(self) -> impl Iterator<Item = PolyTraitPredicate<'tcx>> {
+        ParamEnv::trait_clauses(self)
+    }
+
+    fn region_outlives_clauses(self) -> impl Iterator<Item = PolyRegionOutlivesPredicate<'tcx>> {
+        ParamEnv::region_outlives_clauses(self)
+    }
+
+    fn type_outlives_clauses(self) -> impl Iterator<Item = PolyTypeOutlivesPredicate<'tcx>> {
+        ParamEnv::type_outlives_clauses(self)
+    }
+
+    fn projection_clauses(self) -> impl Iterator<Item = PolyProjectionPredicate<'tcx>> {
+        ParamEnv::projection_clauses(self)
+    }
+
+    fn const_arg_has_type_clauses(
+        self,
+    ) -> impl Iterator<Item = PolyConstArgHasTypePredicate<'tcx>> {
+        ParamEnv::const_arg_has_type_clauses(self)
+    }
+
+    fn well_formed_clauses(self) -> impl Iterator<Item = PolyWellFormedPredicate<'tcx>> {
+        ParamEnv::well_formed_clauses(self)
+    }
+
+    fn const_evaluatable_clauses(
+        self,
+    ) -> impl Iterator<Item = PolyConstEvaluatablePredicate<'tcx>> {
+        ParamEnv::const_evaluatable_clauses(self)
+    }
+
+    fn host_effect_clauses(self) -> impl Iterator<Item = PolyHostEffectPredicate<'tcx>> {
+        ParamEnv::host_effect_clauses(self)
     }
 }
 
@@ -1039,8 +1251,8 @@ impl<'tcx> TypingEnv<'tcx> {
     /// Do not use this for MIR optimizations, as even though they also
     /// use `TypingMode::PostAnalysis`, they may still have where-clauses
     /// in scope.
-    pub fn fully_monomorphized() -> TypingEnv<'tcx> {
-        TypingEnv { typing_mode: TypingMode::PostAnalysis, param_env: ParamEnv::empty() }
+    pub fn fully_monomorphized(tcx: TyCtxt<'tcx>) -> TypingEnv<'tcx> {
+        TypingEnv { typing_mode: TypingMode::PostAnalysis, param_env: ParamEnv::empty(tcx) }
     }
 
     /// Create a typing environment for use during analysis outside of a body.
@@ -1073,9 +1285,9 @@ impl<'tcx> TypingEnv<'tcx> {
         // No need to reveal opaques with the new solver enabled,
         // since we have lazy norm.
         let param_env = if tcx.next_trait_solver_globally() {
-            ParamEnv::new(param_env.caller_bounds())
+            param_env
         } else {
-            ParamEnv::new(tcx.reveal_opaque_types_in_bounds(param_env.caller_bounds()))
+            tcx.reveal_opaque_types_in_bounds(param_env)
         };
         TypingEnv { typing_mode: TypingMode::PostAnalysis, param_env }
     }

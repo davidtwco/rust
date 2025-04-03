@@ -49,6 +49,11 @@ where
 
     fn trait_def_id(self, cx: I) -> I::DefId;
 
+    /// Returns the assumptions from the goal's `ParamEnv` which are relevant to
+    /// this `GoalKind`.
+    fn relevant_assumptions_for_goal(cx: I, goal: Goal<I, Self>)
+    -> impl Iterator<Item = I::Clause>;
+
     /// Try equating an assumption predicate against a goal's predicate. If it
     /// holds, then execute the `then` callback, which should do any additional
     /// work, then produce a response (typically by executing
@@ -501,7 +506,7 @@ where
         goal: Goal<I, G>,
         candidates: &mut Vec<Candidate<I>>,
     ) {
-        for (i, assumption) in goal.param_env.caller_bounds().iter().enumerate() {
+        for (i, assumption) in G::relevant_assumptions_for_goal(self.cx(), goal).enumerate() {
             candidates.extend(G::probe_and_consider_implied_clause(
                 self,
                 CandidateSource::ParamEnv(i),

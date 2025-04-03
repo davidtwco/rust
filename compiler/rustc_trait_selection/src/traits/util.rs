@@ -525,7 +525,7 @@ where
 {
     #[allow(rustc::usage_of_type_ir_inherent)]
     use rustc_type_ir::inherent::*;
-    sizedness_elab_opt_fast_path_from_clauses(infcx, self_ty, param_env.caller_bounds().iter())
+    sizedness_elab_opt_fast_path_from_clauses(infcx, self_ty, param_env.trait_clauses())
 }
 
 /// Same as `sizedness_elab_opt_fast_path_from_paramenv` but takes an iterator of clauses instead
@@ -539,17 +539,12 @@ pub(crate) fn sizedness_elab_opt_fast_path_from_clauses<Infcx, I, Trs>(
 where
     I: Interner,
     Infcx: InferCtxtLike<Interner = I>,
-    Trs: IntoIterator<Item = I::Clause>,
+    Trs: IntoIterator<Item = rustc_type_ir::Binder<I, rustc_type_ir::TraitPredicate<I>>>,
 {
-    #[allow(rustc::usage_of_type_ir_inherent)]
-    use rustc_type_ir::inherent::*;
     sizedness_elab_opt_fast_path_from_traitrefs(
         infcx,
         self_ty,
-        clauses
-            .into_iter()
-            .filter_map(|p| p.as_trait_clause())
-            .map(|c| c.map_bound(|c| c.trait_ref)),
+        clauses.into_iter().map(|c| c.map_bound(|c| c.trait_ref)),
     )
     .map(|f| f.map_bound(|f| f.upcast(infcx.cx())))
 }
@@ -604,15 +599,10 @@ pub fn sizedness_fast_path<'tcx>(
         }
 
         if matches!(sizedness, Some(SizedTraitKind::MetaSized)) {
-            let has_sized_in_param_env = param_env
-                .caller_bounds()
-                .iter()
-                .rev() // sizedness predicates are normally at the end for diagnostics reasons
-                .filter_map(|p| p.as_trait_clause())
-                .any(|c| {
-                    trait_ref.self_ty() == c.skip_binder().self_ty()
-                        && tcx.is_lang_item(c.def_id(), LangItem::Sized)
-                });
+            let has_sized_in_param_env = param_env.trait_clauses().any(|c| {
+                trait_ref.self_ty() == c.skip_binder().self_ty()
+                    && tcx.is_lang_item(c.def_id(), LangItem::Sized)
+            });
             if has_sized_in_param_env {
                 debug!("fast path -- metasized paramenv");
                 return true;

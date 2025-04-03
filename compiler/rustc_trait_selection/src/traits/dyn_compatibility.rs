@@ -607,11 +607,14 @@ fn receiver_is_dispatchable<'tcx>(
 
         normalize_param_env_or_error(
             tcx,
-            ty::ParamEnv::new(tcx.mk_clauses_from_iter(param_env.caller_bounds().iter().chain([
-                unsize_predicate,
-                meta_sized_predicate,
-                trait_predicate,
-            ]))),
+            ty::ParamEnv::from_clauses_iter(
+                tcx,
+                param_env.all_clauses(tcx).chain([
+                    unsize_predicate,
+                    meta_sized_predicate,
+                    trait_predicate,
+                ]),
+            ),
             ObligationCause::dummy_with_span(tcx.def_span(method.def_id)),
         )
     };

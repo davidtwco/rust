@@ -201,12 +201,8 @@ fn fulfill_implication<'tcx>(
     if !errors.is_empty() {
         // no dice!
         debug!(
-            "fulfill_implication: for impls on {:?} and {:?}, \
-                 could not fulfill: {:?} given {:?}",
-            source_trait_ref,
-            target_trait_ref,
-            errors,
-            param_env.caller_bounds()
+            "fulfill_implication: for impls on {:?} and {:?}, could not fulfill: {:?} given {:?}",
+            source_trait_ref, target_trait_ref, errors, param_env
         );
         return Err(NoSolution);
     }
@@ -335,12 +331,8 @@ pub(super) fn specializes(
     if !errors.is_empty() {
         // no dice!
         debug!(
-            "fulfill_implication: for impls on {:?} and {:?}, \
-                 could not fulfill: {:?} given {:?}",
-            specializing_impl_trait_ref,
-            parent_impl_trait_ref,
-            errors,
-            param_env.caller_bounds()
+            "fulfill_implication: for impls on {:?} and {:?}, could not fulfill: {:?} given {:?}",
+            specializing_impl_trait_ref, parent_impl_trait_ref, errors, param_env
         );
         return false;
     }
@@ -371,12 +363,9 @@ pub(super) fn specializes(
         if !errors.is_empty() {
             // no dice!
             debug!(
-                "fulfill_implication: for impls on {:?} and {:?}, \
-                 could not fulfill: {:?} given {:?}",
-                specializing_impl_trait_ref,
-                parent_impl_trait_ref,
-                errors,
-                param_env.caller_bounds()
+                "fulfill_implication: for impls on {:?} and {:?}, could not fulfill: {:?} \
+                 given {:?}",
+                specializing_impl_trait_ref, parent_impl_trait_ref, errors, param_env
             );
             return false;
         }

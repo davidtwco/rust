@@ -13,7 +13,7 @@ use crate::fold::{TypeFoldable, TypeSuperFoldable};
 use crate::relate::Relate;
 use crate::solve::{AdtDestructorKind, SizedTraitKind};
 use crate::visit::{Flags, TypeSuperVisitable, TypeVisitable};
-use crate::{self as ty, CollectAndApply, Interner, UpcastFrom};
+use crate::{self as ty, Binder, CollectAndApply, Interner, UpcastFrom};
 
 pub trait Ty<I: Interner<Ty = Self>>:
     Copy
@@ -570,7 +570,25 @@ pub trait AdtDef<I: Interner>: Copy + Debug + Hash + Eq {
 }
 
 pub trait ParamEnv<I: Interner>: Copy + Debug + Hash + Eq + TypeFoldable<I> {
-    fn caller_bounds(self) -> impl SliceLike<Item = I::Clause>;
+    fn trait_clauses(self) -> impl Iterator<Item = Binder<I, ty::TraitPredicate<I>>>;
+
+    fn region_outlives_clauses(
+        self,
+    ) -> impl Iterator<Item = Binder<I, ty::OutlivesPredicate<I, I::Region>>>;
+
+    fn type_outlives_clauses(
+        self,
+    ) -> impl Iterator<Item = Binder<I, ty::OutlivesPredicate<I, I::Ty>>>;
+
+    fn projection_clauses(self) -> impl Iterator<Item = Binder<I, ty::ProjectionPredicate<I>>>;
+
+    fn const_arg_has_type_clauses(self) -> impl Iterator<Item = Binder<I, (I::Const, I::Ty)>>;
+
+    fn well_formed_clauses(self) -> impl Iterator<Item = Binder<I, I::GenericArg>>;
+
+    fn const_evaluatable_clauses(self) -> impl Iterator<Item = Binder<I, I::Const>>;
+
+    fn host_effect_clauses(self) -> impl Iterator<Item = Binder<I, ty::HostEffectPredicate<I>>>;
 }
 
 pub trait Features<I: Interner>: Copy {
@@ -681,5 +699,21 @@ impl<'a, S: SliceLike> SliceLike for &'a S {
 
     fn as_slice(&self) -> &[Self::Item] {
         (*self).as_slice()
+    }
+}
+
+impl<'a, A: smallvec::Array> SliceLike for &'a smallvec::SmallVec<A>
+where
+    <A as smallvec::Array>::Item: Copy,
+{
+    type Item = <A as smallvec::Array>::Item;
+    type IntoIter = std::iter::Copied<std::slice::Iter<'a, <A as smallvec::Array>::Item>>;
+
+    fn iter(self) -> Self::IntoIter {
+        self.into_iter().copied()
+    }
+
+    fn as_slice(&self) -> &[Self::Item] {
+        smallvec::SmallVec::as_slice(self)
     }
 }

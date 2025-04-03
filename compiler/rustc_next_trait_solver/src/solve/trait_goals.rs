@@ -124,6 +124,13 @@ where
             .enter(|ecx| ecx.evaluate_added_goals_and_make_canonical_response(Certainty::Yes))
     }
 
+    fn relevant_assumptions_for_goal(
+        cx: I,
+        goal: Goal<I, Self>,
+    ) -> impl Iterator<Item = I::Clause> {
+        goal.param_env.trait_clauses().map(move |pred| pred.upcast(cx))
+    }
+
     fn probe_and_match_goal_against_assumption(
         ecx: &mut EvalCtxt<'_, D>,
         source: CandidateSource<I>,
@@ -1281,11 +1288,7 @@ where
         // (including global ones) over everything else.
         let has_non_global_where_bounds = candidates.iter().any(|c| match c.source {
             CandidateSource::ParamEnv(idx) => {
-                let where_bound = goal.param_env.caller_bounds().get(idx).unwrap();
-                let ty::ClauseKind::Trait(trait_pred) = where_bound.kind().skip_binder() else {
-                    unreachable!("expected trait-bound: {where_bound:?}");
-                };
-
+                let trait_pred = goal.param_env.trait_clauses().nth(idx).unwrap().skip_binder();
                 if trait_pred.has_bound_vars() || !trait_pred.is_global() {
                     return true;
                 }
@@ -1294,11 +1297,11 @@ where
                 //
                 // See ui/traits/next-solver/normalization-shadowing/global-trait-with-project.rs
                 // for an example where this is necessary.
-                for p in goal.param_env.caller_bounds().iter() {
-                    if let ty::ClauseKind::Projection(proj) = p.kind().skip_binder() {
-                        if proj.projection_term.trait_ref(self.cx()) == trait_pred.trait_ref {
-                            return true;
-                        }
+                for proj in goal.param_env.projection_clauses() {
+                    if proj.skip_binder().projection_term.trait_ref(self.cx())
+                        == trait_pred.trait_ref
+                    {
+                        return true;
                     }
                 }
 

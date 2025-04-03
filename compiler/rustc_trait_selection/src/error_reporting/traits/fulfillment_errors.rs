@@ -1306,7 +1306,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
             assumption,
         );
 
-        self.can_eq(ty::ParamEnv::empty(), goal.trait_ref, trait_assumption.trait_ref)
+        self.can_eq(ty::ParamEnv::empty(self.infcx.tcx), goal.trait_ref, trait_assumption.trait_ref)
     }
 
     fn can_match_projection(
@@ -1320,7 +1320,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
             assumption,
         );
 
-        let param_env = ty::ParamEnv::empty();
+        let param_env = ty::ParamEnv::empty(self.infcx.tcx);
         self.can_eq(param_env, goal.projection_term, assumption.projection_term)
             && self.can_eq(param_env, goal.term, assumption.term)
     }

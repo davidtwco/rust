@@ -265,10 +265,8 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                 }
             }
 
-            if self.infcx.param_env.caller_bounds().iter().any(|c| {
-                c.as_trait_clause().is_some_and(|pred| {
-                    pred.skip_binder().self_ty() == ty && self.infcx.tcx.is_fn_trait(pred.def_id())
-                })
+            if self.infcx.param_env.trait_clauses().any(|pred| {
+                pred.skip_binder().self_ty() == ty && self.infcx.tcx.is_fn_trait(pred.def_id())
             }) {
                 // Suppress the next suggestion since we don't want to put more bounds onto
                 // something that already has `Fn`-like bounds (or is a closure), so we can't

@@ -6,7 +6,7 @@ use rustc_type_ir::inherent::*;
 use rustc_type_ir::lang_items::TraitSolverLangItem;
 use rustc_type_ir::solve::SizedTraitKind;
 use rustc_type_ir::solve::inspect::ProbeKind;
-use rustc_type_ir::{self as ty, Interner, elaborate};
+use rustc_type_ir::{self as ty, Interner, Upcast, elaborate};
 use tracing::instrument;
 
 use super::assembly::{Candidate, structural_traits};
@@ -35,6 +35,16 @@ where
 
     fn trait_def_id(self, _: I) -> I::DefId {
         self.def_id()
+    }
+
+    fn relevant_assumptions_for_goal(
+        cx: I,
+        goal: Goal<I, Self>,
+    ) -> impl Iterator<Item = I::Clause> {
+        goal.param_env.host_effect_clauses().map(move |pred| {
+            // FIXME: `pred.upcast(cx)` should work and the impl exists but rustc can't find it?
+            pred.map_bound(ty::ClauseKind::HostEffect).upcast(cx)
+        })
     }
 
     fn probe_and_match_goal_against_assumption(

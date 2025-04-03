@@ -207,9 +207,16 @@ impl<'tcx, E: TyEncoder<'tcx>> Encodable<E> for CtfeProvenance {
     }
 }
 
-impl<'tcx, E: TyEncoder<'tcx>> Encodable<E> for ty::ParamEnv<'tcx> {
+impl<'tcx, E: TyEncoder<'tcx>> Encodable<E> for ty::ParamEnvClauses<'tcx> {
     fn encode(&self, e: &mut E) {
-        self.caller_bounds().encode(e);
+        self.trait_clauses.encode(e);
+        self.region_outlives_clauses.encode(e);
+        self.type_outlives_clauses.encode(e);
+        self.projection_clauses.encode(e);
+        self.const_arg_has_type_clauses.encode(e);
+        self.well_formed_clauses.encode(e);
+        self.const_evaluatable_clauses.encode(e);
+        self.host_effect_clauses.encode(e);
     }
 }
 
@@ -338,10 +345,26 @@ impl<'tcx, D: TyDecoder<'tcx>> Decodable<D> for ty::SymbolName<'tcx> {
     }
 }
 
-impl<'tcx, D: TyDecoder<'tcx>> Decodable<D> for ty::ParamEnv<'tcx> {
+impl<'tcx, D: TyDecoder<'tcx>> Decodable<D> for ty::ParamEnvClauses<'tcx> {
     fn decode(d: &mut D) -> Self {
-        let caller_bounds = Decodable::decode(d);
-        ty::ParamEnv::new(caller_bounds)
+        let trait_ = Decodable::decode(d);
+        let region_outlives = Decodable::decode(d);
+        let type_outlives = Decodable::decode(d);
+        let projection = Decodable::decode(d);
+        let const_arg_has_type = Decodable::decode(d);
+        let well_formed = Decodable::decode(d);
+        let const_evaluatable = Decodable::decode(d);
+        let host_effect = Decodable::decode(d);
+        ty::ParamEnvClauses {
+            trait_clauses: trait_,
+            region_outlives_clauses: region_outlives,
+            type_outlives_clauses: type_outlives,
+            projection_clauses: projection,
+            const_arg_has_type_clauses: const_arg_has_type,
+            well_formed_clauses: well_formed,
+            const_evaluatable_clauses: const_evaluatable,
+            host_effect_clauses: host_effect,
+        }
     }
 }
 

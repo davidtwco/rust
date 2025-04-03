@@ -1744,7 +1744,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                                 }
                                 infcx
                                     .can_eq(
-                                        ty::ParamEnv::empty(),
+                                        ty::ParamEnv::empty(tcx),
                                         trait_ref.self_ty(),
                                         value,
                                     ) && header.polarity != ty::ImplPolarity::Negative

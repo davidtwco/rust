@@ -248,12 +248,12 @@ fn pred_known_to_hold_modulo_regions<'tcx>(
 }
 
 #[instrument(level = "debug", skip(tcx, elaborated_env))]
-fn do_normalize_predicates<'tcx>(
+fn do_normalize_predicates<'tcx, T: TypeFoldable<TyCtxt<'tcx>>>(
     tcx: TyCtxt<'tcx>,
     cause: ObligationCause<'tcx>,
     elaborated_env: ty::ParamEnv<'tcx>,
-    predicates: Vec<ty::Clause<'tcx>>,
-) -> Result<Vec<ty::Clause<'tcx>>, ErrorGuaranteed> {
+    predicates: T,
+) -> Result<T, ErrorGuaranteed> {
     let span = cause.span;
 
     // FIXME. We should really... do something with these region
@@ -337,84 +337,79 @@ pub fn normalize_param_env_or_error<'tcx>(
     // parameter environments once for every fn as it goes,
     // and errors will get reported then; so outside of type inference we
     // can be sure that no errors should occur.
-    let mut predicates: Vec<_> = util::elaborate(
-        tcx,
-        unnormalized_env.caller_bounds().into_iter().map(|predicate| {
-            if tcx.features().generic_const_exprs() {
-                return predicate;
+    let unnormalized_env = if tcx.features().generic_const_exprs() {
+        unnormalized_env
+    } else {
+        struct ConstNormalizer<'tcx>(TyCtxt<'tcx>);
+
+        impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ConstNormalizer<'tcx> {
+            fn cx(&self) -> TyCtxt<'tcx> {
+                self.0
             }
 
-            struct ConstNormalizer<'tcx>(TyCtxt<'tcx>);
+            fn fold_const(&mut self, c: ty::Const<'tcx>) -> ty::Const<'tcx> {
+                // FIXME(return_type_notation): track binders in this normalizer, as
+                // `ty::Const::normalize` can only work with properly preserved binders.
 
-            impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ConstNormalizer<'tcx> {
-                fn cx(&self) -> TyCtxt<'tcx> {
-                    self.0
+                if c.has_escaping_bound_vars() {
+                    return ty::Const::new_misc_error(self.0);
                 }
 
-                fn fold_const(&mut self, c: ty::Const<'tcx>) -> ty::Const<'tcx> {
-                    // FIXME(return_type_notation): track binders in this normalizer, as
-                    // `ty::Const::normalize` can only work with properly preserved binders.
-
-                    if c.has_escaping_bound_vars() {
-                        return ty::Const::new_misc_error(self.0);
-                    }
-
-                    // While it is pretty sus to be evaluating things with an empty param env, it
-                    // should actually be okay since without `feature(generic_const_exprs)` the only
-                    // const arguments that have a non-empty param env are array repeat counts. These
-                    // do not appear in the type system though.
-                    if let ty::ConstKind::Unevaluated(uv) = c.kind()
-                        && self.0.def_kind(uv.def) == DefKind::AnonConst
-                    {
-                        let infcx = self.0.infer_ctxt().build(TypingMode::non_body_analysis());
-                        let c = evaluate_const(&infcx, c, ty::ParamEnv::empty());
-                        // We should never wind up with any `infcx` local state when normalizing anon consts
-                        // under min const generics.
-                        assert!(!c.has_infer() && !c.has_placeholders());
-                        return c;
-                    }
-
-                    c
+                // While it is pretty sus to be evaluating things with an empty param env, it
+                // should actually be okay since without `feature(generic_const_exprs)` the only
+                // const arguments that have a non-empty param env are array repeat counts. These
+                // do not appear in the type system though.
+                if let ty::ConstKind::Unevaluated(uv) = c.kind()
+                    && self.0.def_kind(uv.def) == DefKind::AnonConst
+                {
+                    let infcx = self.0.infer_ctxt().build(TypingMode::non_body_analysis());
+                    let c = evaluate_const(&infcx, c, ty::ParamEnv::empty(self.cx()));
+                    // We should never wind up with any `infcx` local state when normalizing anon consts
+                    // under min const generics.
+                    assert!(!c.has_infer() && !c.has_placeholders());
+                    return c;
                 }
+
+                c
             }
+        }
 
-            // This whole normalization step is a hack to work around the fact that
-            // `normalize_param_env_or_error` is fundamentally broken from using an
-            // unnormalized param env with a trait solver that expects the param env
-            // to be normalized.
-            //
-            // When normalizing the param env we can end up evaluating obligations
-            // that have been normalized but can only be proven via a where clause
-            // which is still in its unnormalized form. example:
-            //
-            // Attempting to prove `T: Trait<<u8 as Identity>::Assoc>` in a param env
-            // with a `T: Trait<<u8 as Identity>::Assoc>` where clause will fail because
-            // we first normalize obligations before proving them so we end up proving
-            // `T: Trait<u8>`. Since lazy normalization is not implemented equating `u8`
-            // with `<u8 as Identity>::Assoc` fails outright so we incorrectly believe that
-            // we cannot prove `T: Trait<u8>`.
-            //
-            // The same thing is true for const generics- attempting to prove
-            // `T: Trait<ConstKind::Unevaluated(...)>` with the same thing as a where clauses
-            // will fail. After normalization we may be attempting to prove `T: Trait<4>` with
-            // the unnormalized where clause `T: Trait<ConstKind::Unevaluated(...)>`. In order
-            // for the obligation to hold `4` must be equal to `ConstKind::Unevaluated(...)`
-            // but as we do not have lazy norm implemented, equating the two consts fails outright.
-            //
-            // Ideally we would not normalize consts here at all but it is required for backwards
-            // compatibility. Eventually when lazy norm is implemented this can just be removed.
-            // We do not normalize types here as there is no backwards compatibility requirement
-            // for us to do so.
-            //
-            // FIXME(-Znext-solver): remove this hack since we have deferred projection equality
-            predicate.fold_with(&mut ConstNormalizer(tcx))
-        }),
-    )
-    .collect();
+        // This whole normalization step is a hack to work around the fact that
+        // `normalize_param_env_or_error` is fundamentally broken from using an
+        // unnormalized param env with a trait solver that expects the param env
+        // to be normalized.
+        //
+        // When normalizing the param env we can end up evaluating obligations
+        // that have been normalized but can only be proven via a where clause
+        // which is still in its unnormalized form. example:
+        //
+        // Attempting to prove `T: Trait<<u8 as Identity>::Assoc>` in a param env
+        // with a `T: Trait<<u8 as Identity>::Assoc>` where clause will fail because
+        // we first normalize obligations before proving them so we end up proving
+        // `T: Trait<u8>`. Since lazy normalization is not implemented equating `u8`
+        // with `<u8 as Identity>::Assoc` fails outright so we incorrectly believe that
+        // we cannot prove `T: Trait<u8>`.
+        //
+        // The same thing is true for const generics- attempting to prove
+        // `T: Trait<ConstKind::Unevaluated(...)>` with the same thing as a where clauses
+        // will fail. After normalization we may be attempting to prove `T: Trait<4>` with
+        // the unnormalized where clause `T: Trait<ConstKind::Unevaluated(...)>`. In order
+        // for the obligation to hold `4` must be equal to `ConstKind::Unevaluated(...)`
+        // but as we do not have lazy norm implemented, equating the two consts fails outright.
+        //
+        // Ideally we would not normalize consts here at all but it is required for backwards
+        // compatibility. Eventually when lazy norm is implemented this can just be removed.
+        // We do not normalize types here as there is no backwards compatibility requirement
+        // for us to do so.
+        //
+        // FIXME(-Znext-solver): remove this hack since we have deferred projection equality
+        unnormalized_env.fold_with(&mut ConstNormalizer(tcx))
+    };
 
+    let mut predicates: Vec<_> = util::elaborate(tcx, unnormalized_env.all_clauses(tcx)).collect();
     debug!("normalize_param_env_or_error: elaborated-predicates={:?}", predicates);
 
-    let elaborated_env = ty::ParamEnv::new(tcx.mk_clauses(&predicates));
+    let elaborated_env = ty::ParamEnv::from_clauses(tcx, &predicates);
     if !elaborated_env.has_aliases() {
         return elaborated_env;
     }
@@ -461,7 +456,7 @@ pub fn normalize_param_env_or_error<'tcx>(
     // here. I believe they should not matter, because we are ignoring TypeOutlives param-env
     // predicates here anyway. Keeping them here anyway because it seems safer.
     let outlives_env = non_outlives_predicates.iter().chain(&outlives_predicates).cloned();
-    let outlives_env = ty::ParamEnv::new(tcx.mk_clauses_from_iter(outlives_env));
+    let outlives_env = ty::ParamEnv::from_clauses_iter(tcx, outlives_env);
     let Ok(outlives_predicates) =
         do_normalize_predicates(tcx, cause, outlives_env, outlives_predicates)
     else {
@@ -469,12 +464,13 @@ pub fn normalize_param_env_or_error<'tcx>(
         debug!("normalize_param_env_or_error: errored resolving outlives predicates");
         return elaborated_env;
     };
+
     debug!("normalize_param_env_or_error: outlives predicates={:?}", outlives_predicates);
 
     let mut predicates = non_outlives_predicates;
     predicates.extend(outlives_predicates);
     debug!("normalize_param_env_or_error: final predicates={:?}", predicates);
-    ty::ParamEnv::new(tcx.mk_clauses(&predicates))
+    ty::ParamEnv::from_clauses_iter(tcx, predicates.iter().copied())
 }
 
 #[derive(Debug)]
@@ -702,7 +698,7 @@ fn replace_param_and_infer_args_with_placeholder<'tcx>(
 pub fn impossible_predicates<'tcx>(tcx: TyCtxt<'tcx>, predicates: Vec<ty::Clause<'tcx>>) -> bool {
     debug!("impossible_predicates(predicates={:?})", predicates);
     let (infcx, param_env) =
-        tcx.infer_ctxt().build_with_typing_env(ty::TypingEnv::fully_monomorphized());
+        tcx.infer_ctxt().build_with_typing_env(ty::TypingEnv::fully_monomorphized(tcx));
     let ocx = ObligationCtxt::new(&infcx);
     let predicates = ocx.normalize(&ObligationCause::dummy(), param_env, predicates);
     for predicate in predicates {
@@ -804,7 +800,7 @@ fn is_impossible_associated_item(
         .ignoring_regions()
         .with_next_trait_solver(true)
         .build(TypingMode::Coherence);
-    let param_env = ty::ParamEnv::empty();
+    let param_env = ty::ParamEnv::empty(tcx);
     let fresh_args = infcx.fresh_args_for_item(tcx.def_span(impl_def_id), impl_def_id);
 
     let impl_trait_ref = tcx

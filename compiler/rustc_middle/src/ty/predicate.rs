@@ -26,12 +26,19 @@ pub type SubtypePredicate<'tcx> = ir::SubtypePredicate<TyCtxt<'tcx>>;
 pub type OutlivesPredicate<'tcx, T> = ir::OutlivesPredicate<TyCtxt<'tcx>, T>;
 pub type RegionOutlivesPredicate<'tcx> = OutlivesPredicate<'tcx, ty::Region<'tcx>>;
 pub type TypeOutlivesPredicate<'tcx> = OutlivesPredicate<'tcx, Ty<'tcx>>;
+pub type ConstArgHasTypePredicate<'tcx> = (ty::Const<'tcx>, Ty<'tcx>);
+pub type WellFormedPredicate<'tcx> = ty::GenericArg<'tcx>;
+pub type ConstEvaluatablePredicate<'tcx> = ty::Const<'tcx>;
 pub type PolyTraitPredicate<'tcx> = ty::Binder<'tcx, TraitPredicate<'tcx>>;
 pub type PolyRegionOutlivesPredicate<'tcx> = ty::Binder<'tcx, RegionOutlivesPredicate<'tcx>>;
 pub type PolyTypeOutlivesPredicate<'tcx> = ty::Binder<'tcx, TypeOutlivesPredicate<'tcx>>;
 pub type PolySubtypePredicate<'tcx> = ty::Binder<'tcx, SubtypePredicate<'tcx>>;
 pub type PolyCoercePredicate<'tcx> = ty::Binder<'tcx, CoercePredicate<'tcx>>;
 pub type PolyProjectionPredicate<'tcx> = ty::Binder<'tcx, ProjectionPredicate<'tcx>>;
+pub type PolyHostEffectPredicate<'tcx> = ty::Binder<'tcx, HostEffectPredicate<'tcx>>;
+pub type PolyConstArgHasTypePredicate<'tcx> = ty::Binder<'tcx, ConstArgHasTypePredicate<'tcx>>;
+pub type PolyWellFormedPredicate<'tcx> = ty::Binder<'tcx, WellFormedPredicate<'tcx>>;
+pub type PolyConstEvaluatablePredicate<'tcx> = ty::Binder<'tcx, ConstEvaluatablePredicate<'tcx>>;
 
 /// A statement that can be proven by a trait solver. This includes things that may
 /// show up in where clauses, such as trait predicates and projection predicates,
@@ -199,7 +206,7 @@ impl<'tcx> Clause<'tcx> {
         })
     }
 
-    pub fn as_trait_clause(self) -> Option<ty::Binder<'tcx, TraitPredicate<'tcx>>> {
+    pub fn as_trait_clause(self) -> Option<PolyTraitPredicate<'tcx>> {
         let clause = self.kind();
         if let ty::ClauseKind::Trait(trait_clause) = clause.skip_binder() {
             Some(clause.rebind(trait_clause))
@@ -208,7 +215,7 @@ impl<'tcx> Clause<'tcx> {
         }
     }
 
-    pub fn as_host_effect_clause(self) -> Option<ty::Binder<'tcx, HostEffectPredicate<'tcx>>> {
+    pub fn as_host_effect_clause(self) -> Option<PolyHostEffectPredicate<'tcx>> {
         let clause = self.kind();
         if let ty::ClauseKind::HostEffect(host_effect_clause) = clause.skip_binder() {
             Some(clause.rebind(host_effect_clause))
@@ -217,7 +224,7 @@ impl<'tcx> Clause<'tcx> {
         }
     }
 
-    pub fn as_projection_clause(self) -> Option<ty::Binder<'tcx, ProjectionPredicate<'tcx>>> {
+    pub fn as_projection_clause(self) -> Option<PolyProjectionPredicate<'tcx>> {
         let clause = self.kind();
         if let ty::ClauseKind::Projection(projection_clause) = clause.skip_binder() {
             Some(clause.rebind(projection_clause))
@@ -226,7 +233,7 @@ impl<'tcx> Clause<'tcx> {
         }
     }
 
-    pub fn as_type_outlives_clause(self) -> Option<ty::Binder<'tcx, TypeOutlivesPredicate<'tcx>>> {
+    pub fn as_type_outlives_clause(self) -> Option<PolyTypeOutlivesPredicate<'tcx>> {
         let clause = self.kind();
         if let ty::ClauseKind::TypeOutlives(o) = clause.skip_binder() {
             Some(clause.rebind(o))
@@ -235,9 +242,7 @@ impl<'tcx> Clause<'tcx> {
         }
     }
 
-    pub fn as_region_outlives_clause(
-        self,
-    ) -> Option<ty::Binder<'tcx, RegionOutlivesPredicate<'tcx>>> {
+    pub fn as_region_outlives_clause(self) -> Option<PolyRegionOutlivesPredicate<'tcx>> {
         let clause = self.kind();
         if let ty::ClauseKind::RegionOutlives(o) = clause.skip_binder() {
             Some(clause.rebind(o))
@@ -588,9 +593,43 @@ impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyRegionOutlivesPredicate<'tcx>> for Predi
     }
 }
 
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, RegionOutlivesPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: RegionOutlivesPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyRegionOutlivesPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: PolyRegionOutlivesPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
 impl<'tcx> UpcastFrom<TyCtxt<'tcx>, TypeOutlivesPredicate<'tcx>> for Predicate<'tcx> {
     fn upcast_from(from: TypeOutlivesPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
         ty::Binder::dummy(PredicateKind::Clause(ClauseKind::TypeOutlives(from))).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyTypeOutlivesPredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: PolyTypeOutlivesPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        from.map_bound(|p| PredicateKind::Clause(ClauseKind::TypeOutlives(p))).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, TypeOutlivesPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: TypeOutlivesPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyTypeOutlivesPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: PolyTypeOutlivesPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
     }
 }
 
@@ -620,24 +659,106 @@ impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyProjectionPredicate<'tcx>> for Clause<'t
     }
 }
 
-impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>>
-    for Predicate<'tcx>
-{
-    fn upcast_from(
-        from: ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>,
-        tcx: TyCtxt<'tcx>,
-    ) -> Self {
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ConstArgHasTypePredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: ConstArgHasTypePredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        ty::Binder::dummy(PredicateKind::Clause(ClauseKind::ConstArgHasType(from.0, from.1)))
+            .upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyConstArgHasTypePredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: PolyConstArgHasTypePredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        from.map_bound(|p| PredicateKind::Clause(ClauseKind::ConstArgHasType(p.0, p.1))).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ConstArgHasTypePredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: ConstArgHasTypePredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyConstArgHasTypePredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: PolyConstArgHasTypePredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, WellFormedPredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: WellFormedPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        ty::Binder::dummy(PredicateKind::Clause(ClauseKind::WellFormed(from))).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyWellFormedPredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: PolyWellFormedPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        from.map_bound(|p| PredicateKind::Clause(ClauseKind::WellFormed(p))).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, WellFormedPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: WellFormedPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyWellFormedPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: PolyWellFormedPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ConstEvaluatablePredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: ConstEvaluatablePredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        ty::Binder::dummy(PredicateKind::Clause(ClauseKind::ConstEvaluatable(from))).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyConstEvaluatablePredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: PolyConstEvaluatablePredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        from.map_bound(|p| PredicateKind::Clause(ClauseKind::ConstEvaluatable(p))).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ConstEvaluatablePredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: ConstEvaluatablePredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyConstEvaluatablePredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: PolyConstEvaluatablePredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, HostEffectPredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: HostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        PredicateKind::Clause(ClauseKind::HostEffect(from)).upcast(tcx)
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyHostEffectPredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: PolyHostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
         from.map_bound(ty::ClauseKind::HostEffect).upcast(tcx)
     }
 }
 
-impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>>
-    for Clause<'tcx>
-{
-    fn upcast_from(
-        from: ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>,
-        tcx: TyCtxt<'tcx>,
-    ) -> Self {
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, HostEffectPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: HostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
+    }
+}
+
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyHostEffectPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: PolyHostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
         from.map_bound(ty::ClauseKind::HostEffect).upcast(tcx)
     }
 }

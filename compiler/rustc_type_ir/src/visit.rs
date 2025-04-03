@@ -193,7 +193,10 @@ impl<I: Interner, T: TypeVisitable<I>> TypeVisitable<I> for ThinVec<T> {
     }
 }
 
-impl<I: Interner, T: TypeVisitable<I>, const N: usize> TypeVisitable<I> for SmallVec<[T; N]> {
+impl<A: smallvec::Array, I: Interner> TypeVisitable<I> for SmallVec<A>
+where
+    <A as smallvec::Array>::Item: TypeVisitable<I>,
+{
     fn visit_with<V: TypeVisitor<I>>(&self, visitor: &mut V) -> V::Result {
         walk_visitable_list!(visitor, self.iter());
         V::Result::output()

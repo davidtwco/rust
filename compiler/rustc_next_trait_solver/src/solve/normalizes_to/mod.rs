@@ -105,6 +105,13 @@ where
         self.trait_def_id(cx)
     }
 
+    fn relevant_assumptions_for_goal(
+        cx: I,
+        goal: Goal<I, Self>,
+    ) -> impl Iterator<Item = I::Clause> {
+        goal.param_env.projection_clauses().map(move |pred| pred.upcast(cx))
+    }
+
     fn probe_and_match_goal_against_assumption(
         ecx: &mut EvalCtxt<'_, D>,
         source: CandidateSource<I>,
