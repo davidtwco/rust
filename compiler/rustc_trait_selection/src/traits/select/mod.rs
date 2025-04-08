@@ -1007,13 +1007,13 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
     ) -> Result<EvaluationResult, OverflowError> {
         if !matches!(self.infcx.typing_mode(), TypingMode::Coherence)
             && obligation.is_global()
-            && obligation.param_env.caller_bounds().iter().all(|bound| bound.has_param())
+            && obligation.param_env.trait_clauses().all(|bound| bound.has_param())
         {
             // If a param env has no global bounds, global obligations do not
             // depend on its particular value in order to work, so we can clear
             // out the param env and get better caching.
             debug!("in global");
-            obligation.param_env = ty::ParamEnv::empty();
+            obligation.param_env = ty::ParamEnv::empty(self.infcx.tcx);
         }
 
         let stack = self.push_stack(previous_stack, &obligation);
