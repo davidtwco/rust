@@ -1840,6 +1840,55 @@ impl<'tcx> Ty<'tcx> {
         }
     }
 
+    /// Fast path helper for testing if a type has const sizedness.
+    ///
+    /// Returning true means the type is known to have const sizedness. Returning `false` means
+    /// nothing -- could have const sizedness, but might not.
+    #[instrument(skip(tcx), level = "debug")]
+    pub fn has_trivial_const_sizedness(self, tcx: TyCtxt<'tcx>, sizedness: SizedTraitKind) -> bool {
+        match self.kind() {
+            ty::Infer(ty::IntVar(_) | ty::FloatVar(_))
+            | ty::Uint(_)
+            | ty::Int(_)
+            | ty::Bool
+            | ty::Float(_)
+            | ty::FnDef(..)
+            | ty::FnPtr(..)
+            | ty::UnsafeBinder(_)
+            | ty::RawPtr(..)
+            | ty::Char
+            | ty::Ref(..)
+            | ty::Coroutine(..)
+            | ty::CoroutineWitness(..)
+            | ty::Array(..)
+            | ty::Pat(..)
+            | ty::Closure(..)
+            | ty::CoroutineClosure(..)
+            | ty::Never
+            | ty::Error(_)
+            | ty::Str
+            | ty::Slice(_)
+            | ty::Foreign(..)
+            | ty::Dynamic(..) => true,
+
+            ty::Tuple(tys) => {
+                tys.last().is_none_or(|ty| ty.has_trivial_const_sizedness(tcx, sizedness))
+            }
+
+            ty::Adt(def, args) => def.sizedness_constraint(tcx, sizedness).is_none_or(|ty| {
+                ty.instantiate(tcx, args).has_trivial_const_sizedness(tcx, sizedness)
+            }),
+
+            ty::Alias(..) | ty::Param(_) | ty::Placeholder(..) | ty::Bound(..) => false,
+
+            ty::Infer(ty::TyVar(_)) => false,
+
+            ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)) => {
+                bug!("`has_trivial_const_sizedness` applied to unexpected type: {:?}", self)
+            }
+        }
+    }
+
     /// Fast path helper for primitives which are always `Copy` and which
     /// have a side-effect-free `Clone` impl.
     ///

@@ -383,6 +383,26 @@ pub fn sizedness_fast_path<'tcx>(tcx: TyCtxt<'tcx>, predicate: ty::Predicate<'tc
         }
     }
 
+    // Likewise, determining if a sizedness trait is implemented const-ly is a trivial
+    // determination that can happen in the fast path.
+    //
+    // NOTE: Keep this in sync with `evaluate_host_effect_for_sizedness_goal` in the old solver,
+    // `const_conditions_for_sizedness` in the new solver.
+    if let ty::PredicateKind::Clause(ty::ClauseKind::HostEffect(host_pred)) =
+        predicate.kind().skip_binder()
+    {
+        let sizedness = match tcx.as_lang_item(host_pred.def_id()) {
+            Some(LangItem::Sized) => SizedTraitKind::Sized,
+            Some(LangItem::MetaSized) => SizedTraitKind::MetaSized,
+            _ => return false,
+        };
+
+        if host_pred.self_ty().has_trivial_const_sizedness(tcx, sizedness) {
+            debug!("fast path -- host effect");
+            return true;
+        }
+    }
+
     false
 }
 
