@@ -1,5 +1,6 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![feature(no_core, lang_items, rustc_attrs, rustdoc_internals)]
+#![feature(const_trait_impl)]
 #![no_core]
 #![rustc_coherence_is_core]
 #![crate_type = "rlib"]
@@ -23,10 +24,12 @@ impl char {
 pub trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 pub trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
-pub trait Sized: MetaSized {}
+#[const_trait]
+pub trait Sized: ~const MetaSized {}
 
 #[lang = "clone"]
 pub trait Clone: Sized {}

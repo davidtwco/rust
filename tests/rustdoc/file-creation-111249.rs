@@ -1,17 +1,19 @@
 // https://github.com/rust-lang/rust/issues/111249
 #![crate_name = "foo"]
 #![feature(no_core)]
-#![feature(lang_items)]
+#![feature(const_trait_impl, lang_items)]
 #![no_core]
 
 #[lang = "pointee_sized"]
 pub trait PointeeSized {}
 
 #[lang = "meta_sized"]
+#[const_trait]
 pub trait MetaSized: PointeeSized {}
 
 #[lang = "sized"]
-pub trait Sized: MetaSized {}
+#[const_trait]
+pub trait Sized: ~const MetaSized {}
 
 //@ files "foo" "['all.html', 'visible', 'index.html', 'sidebar-items.js', 'hidden', \
 //        'struct.Bar.html', 'trait.Sized.html', 'trait.MetaSized.html', 'trait.PointeeSized.html']"
