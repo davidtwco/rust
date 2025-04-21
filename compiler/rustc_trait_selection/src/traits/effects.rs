@@ -9,10 +9,10 @@ use rustc_middle::ty::elaborate::elaborate;
 use rustc_middle::ty::fast_reject::DeepRejectCtxt;
 use rustc_middle::{bug, ty};
 use thin_vec::{ThinVec, thin_vec};
-use tracing::instrument;
+use tracing::{debug, instrument};
 
-use super::SelectionContext;
 use super::normalize::normalize_with_depth_to;
+use super::{SelectionContext, util};
 
 pub type HostEffectObligation<'tcx> = Obligation<'tcx, ty::HostEffectPredicate<'tcx>>;
 
@@ -22,6 +22,7 @@ pub enum EvaluationFailure {
     NoSolution,
 }
 
+#[tracing::instrument(level = "debug", skip(selcx), ret)]
 pub fn evaluate_host_effect_obligation<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     obligation: &HostEffectObligation<'tcx>,
@@ -137,6 +138,7 @@ fn match_candidate<'tcx>(
     Ok(nested)
 }
 
+#[tracing::instrument(level = "debug", skip(selcx), ret)]
 fn evaluate_host_effect_from_bounds<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     obligation: &HostEffectObligation<'tcx>,
@@ -151,7 +153,12 @@ fn evaluate_host_effect_from_bounds<'tcx>(
             continue;
         };
         let data = bound_clause.rebind(data);
-        if data.skip_binder().trait_ref.def_id != obligation.predicate.trait_ref.def_id {
+
+        let bound_obligation = obligation.with(infcx.tcx, ty::Binder::dummy(obligation.predicate));
+        let data = util::lazily_elaborate_sizedness_candidate(infcx, &bound_obligation, data);
+
+        let data_did = data.skip_binder().trait_ref.def_id;
+        if data_did != obligation.predicate.trait_ref.def_id {
             continue;
         }
 
@@ -165,7 +172,16 @@ fn evaluate_host_effect_from_bounds<'tcx>(
             infcx.probe(|_| match_candidate(selcx, obligation, data, false, |_, _| {}).is_ok());
 
         if is_match {
-            if candidate.is_some() {
+            // Can find ambigious candidates if there is both a `Sized` candidate and a `MetaSized`
+            // candidate (because of `lazily_elaborate_sizedness_candidate`, it becomes another
+            // `Sized` candidate), so never consider multiple candidates for `Sized` as ambiguous
+            // as this is the only way that can happen.
+            let sized_did =
+                selcx.infcx.tcx.require_lang_item(LangItem::Sized, obligation.cause.span);
+            let meta_sized_did =
+                selcx.infcx.tcx.require_lang_item(LangItem::MetaSized, obligation.cause.span);
+            if candidate.is_some() && data_did != sized_did && data_did != meta_sized_did {
+                debug!(?candidate, ?data);
                 return Err(EvaluationFailure::Ambiguous);
             } else {
                 candidate = Some(data);
@@ -183,6 +199,7 @@ fn evaluate_host_effect_from_bounds<'tcx>(
 
 /// Assembles constness bounds from `~const` item bounds on alias types, which only
 /// hold if the `~const` where bounds also hold and the parent trait is `~const`.
+#[tracing::instrument(level = "debug", skip(selcx), ret)]
 fn evaluate_host_effect_from_conditionally_const_item_bounds<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     obligation: &HostEffectObligation<'tcx>,
@@ -264,6 +281,7 @@ fn evaluate_host_effect_from_conditionally_const_item_bounds<'tcx>(
 
 /// Assembles constness bounds "normal" item bounds on aliases, which may include
 /// unconditionally `const` bounds that are *not* conditional and thus always hold.
+#[tracing::instrument(level = "debug", skip(selcx), ret)]
 fn evaluate_host_effect_from_item_bounds<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     obligation: &HostEffectObligation<'tcx>,
@@ -281,7 +299,13 @@ fn evaluate_host_effect_from_item_bounds<'tcx>(
                 continue;
             };
             let data = bound_clause.rebind(data);
-            if data.skip_binder().trait_ref.def_id != obligation.predicate.trait_ref.def_id {
+
+            let bound_obligation =
+                obligation.with(infcx.tcx, ty::Binder::dummy(obligation.predicate));
+            let data = util::lazily_elaborate_sizedness_candidate(infcx, &bound_obligation, data);
+
+            let data_did = data.skip_binder().trait_ref.def_id;
+            if data_did != obligation.predicate.trait_ref.def_id {
                 continue;
             }
 
@@ -295,8 +319,18 @@ fn evaluate_host_effect_from_item_bounds<'tcx>(
             let is_match =
                 infcx.probe(|_| match_candidate(selcx, obligation, data, true, |_, _| {}).is_ok());
 
+            debug!(?is_match);
             if is_match {
-                if candidate.is_some() {
+                // Can find ambigious candidates if there is both a `Sized` candidate and a `MetaSized`
+                // candidate (because of `lazily_elaborate_sizedness_candidate`, it becomes another
+                // `Sized` candidate), so never consider multiple candidates for `Sized` as ambiguous
+                // as this is the only way that can happen.
+                let sized_did =
+                    selcx.infcx.tcx.require_lang_item(LangItem::Sized, obligation.cause.span);
+                let meta_sized_did =
+                    selcx.infcx.tcx.require_lang_item(LangItem::MetaSized, obligation.cause.span);
+                if candidate.is_some() && data_did != sized_did && data_did != meta_sized_did {
+                    debug!(?candidate, ?data);
                     return Err(EvaluationFailure::Ambiguous);
                 } else {
                     candidate = Some(data);
@@ -319,6 +353,7 @@ fn evaluate_host_effect_from_item_bounds<'tcx>(
     }
 }
 
+#[tracing::instrument(level = "debug", skip(selcx), ret)]
 fn evaluate_host_effect_from_builtin_impls<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     obligation: &HostEffectObligation<'tcx>,
@@ -532,6 +567,7 @@ fn evaluate_host_effect_for_destruct_goal<'tcx>(
         .collect())
 }
 
+#[tracing::instrument(level = "debug", skip(selcx), ret)]
 fn evaluate_host_effect_from_selection_candiate<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     obligation: &HostEffectObligation<'tcx>,

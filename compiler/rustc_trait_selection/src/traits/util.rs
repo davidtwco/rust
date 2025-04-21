@@ -4,7 +4,7 @@ use rustc_data_structures::fx::{FxHashSet, FxIndexMap};
 use rustc_hir::LangItem;
 use rustc_hir::def_id::DefId;
 use rustc_infer::infer::InferCtxt;
-use rustc_infer::traits::PolyTraitObligation;
+use rustc_infer::traits::Obligation;
 pub use rustc_infer::traits::util::*;
 use rustc_middle::bug;
 use rustc_middle::ty::fast_reject::DeepRejectCtxt;
@@ -406,38 +406,82 @@ pub fn sizedness_fast_path<'tcx>(tcx: TyCtxt<'tcx>, predicate: ty::Predicate<'tc
     false
 }
 
+pub(crate) trait UnelaboratedSizednessPredicate<'tcx>: Copy {
+    fn def_id(self) -> DefId;
+    fn modifiers_match(self, other: &Self) -> bool;
+    fn args(self) -> ty::GenericArgsRef<'tcx>;
+    fn with_def_id(self, tcx: TyCtxt<'tcx>, def_id: DefId) -> Self;
+}
+
+impl<'tcx> UnelaboratedSizednessPredicate<'tcx> for PolyTraitPredicate<'tcx> {
+    fn def_id(self) -> DefId {
+        self.def_id()
+    }
+
+    fn modifiers_match(self, other: &Self) -> bool {
+        self.polarity() == other.polarity()
+    }
+
+    fn args(self) -> ty::GenericArgsRef<'tcx> {
+        self.skip_binder().trait_ref.args
+    }
+
+    fn with_def_id(self, tcx: TyCtxt<'tcx>, def_id: DefId) -> Self {
+        self.map_bound(|c| TraitPredicate {
+            trait_ref: TraitRef::new_from_args(tcx, def_id, c.trait_ref.args),
+            polarity: c.polarity,
+        })
+    }
+}
+
+impl<'tcx> UnelaboratedSizednessPredicate<'tcx>
+    for ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>
+{
+    fn def_id(self) -> DefId {
+        self.def_id()
+    }
+
+    fn modifiers_match(self, other: &Self) -> bool {
+        self.constness().satisfies(other.constness())
+    }
+
+    fn args(self) -> ty::GenericArgsRef<'tcx> {
+        self.skip_binder().trait_ref.args
+    }
+
+    fn with_def_id(self, tcx: TyCtxt<'tcx>, def_id: DefId) -> Self {
+        self.map_bound(|c| ty::HostEffectPredicate {
+            trait_ref: TraitRef::new_from_args(tcx, def_id, c.trait_ref.args),
+            constness: c.constness,
+        })
+    }
+}
+
 /// To improve performance, sizedness traits are not elaborated and so special-casing is required
 /// in the trait solver to find a `Sized` candidate for a `MetaSized` obligation. Returns the
 /// predicate to used in the candidate for such a `obligation`, given a `candidate`.
-pub(crate) fn lazily_elaborate_sizedness_candidate<'tcx>(
+pub(crate) fn lazily_elaborate_sizedness_candidate<'tcx, P>(
     infcx: &InferCtxt<'tcx>,
-    obligation: &PolyTraitObligation<'tcx>,
-    candidate: PolyTraitPredicate<'tcx>,
-) -> PolyTraitPredicate<'tcx> {
+    obligation: &Obligation<'tcx, P>,
+    candidate: P,
+) -> P
+where
+    P: UnelaboratedSizednessPredicate<'tcx>,
+{
     if !infcx.tcx.is_lang_item(obligation.predicate.def_id(), LangItem::MetaSized)
         || !infcx.tcx.is_lang_item(candidate.def_id(), LangItem::Sized)
     {
         return candidate;
     }
 
-    if obligation.predicate.polarity() != candidate.polarity() {
+    if !obligation.predicate.modifiers_match(&candidate) {
         return candidate;
     }
 
     let drcx = DeepRejectCtxt::relate_rigid_rigid(infcx.tcx);
-    if !drcx.args_may_unify(
-        obligation.predicate.skip_binder().trait_ref.args,
-        candidate.skip_binder().trait_ref.args,
-    ) {
+    if !drcx.args_may_unify(obligation.predicate.args(), candidate.args()) {
         return candidate;
     }
 
-    candidate.map_bound(|c| TraitPredicate {
-        trait_ref: TraitRef::new_from_args(
-            infcx.tcx,
-            obligation.predicate.def_id(),
-            c.trait_ref.args,
-        ),
-        polarity: c.polarity,
-    })
+    candidate.with_def_id(infcx.tcx, obligation.predicate.def_id())
 }
