@@ -208,8 +208,8 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
             self.infcx,
             obligation,
             param.upcast(self.infcx.tcx),
-        )
-        .map_bound(|p| p.trait_ref);
+        );
+        let param = param.map_bound(|p| p.trait_ref);
 
         // During evaluation, we already checked that this
         // where-clause trait-ref could be unified with the obligation

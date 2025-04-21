@@ -622,37 +622,31 @@ impl<'tcx> UpcastFrom<TyCtxt<'tcx>, PolyProjectionPredicate<'tcx>> for Clause<'t
     }
 }
 
-impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::HostEffectPredicate<'tcx>> for Predicate<'tcx> {
-    fn upcast_from(from: ty::HostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
-        ty::ClauseKind::HostEffect(from).upcast(tcx)
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, HostEffectPredicate<'tcx>> for Predicate<'tcx> {
+    fn upcast_from(from: HostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        PredicateKind::Clause(ClauseKind::HostEffect(from)).upcast(tcx)
     }
 }
 
-impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>>
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::Binder<'tcx, HostEffectPredicate<'tcx>>>
     for Predicate<'tcx>
 {
-    fn upcast_from(
-        from: ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>,
-        tcx: TyCtxt<'tcx>,
-    ) -> Self {
-        from.map_bound(ty::ClauseKind::HostEffect).upcast(tcx)
+    fn upcast_from(from: ty::Binder<'tcx, HostEffectPredicate<'tcx>>, tcx: TyCtxt<'tcx>) -> Self {
+        from.map_bound(|p| PredicateKind::Clause(ClauseKind::HostEffect(p))).upcast(tcx)
     }
 }
 
-impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::HostEffectPredicate<'tcx>> for Clause<'tcx> {
-    fn upcast_from(from: ty::HostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
-        ty::ClauseKind::HostEffect(from).upcast(tcx)
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, HostEffectPredicate<'tcx>> for Clause<'tcx> {
+    fn upcast_from(from: HostEffectPredicate<'tcx>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
     }
 }
 
-impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>>
-    for Clause<'tcx>
-{
-    fn upcast_from(
-        from: ty::Binder<'tcx, ty::HostEffectPredicate<'tcx>>,
-        tcx: TyCtxt<'tcx>,
-    ) -> Self {
-        from.map_bound(ty::ClauseKind::HostEffect).upcast(tcx)
+impl<'tcx> UpcastFrom<TyCtxt<'tcx>, ty::Binder<'tcx, HostEffectPredicate<'tcx>>> for Clause<'tcx> {
+    fn upcast_from(from: ty::Binder<'tcx, HostEffectPredicate<'tcx>>, tcx: TyCtxt<'tcx>) -> Self {
+        let p: Predicate<'tcx> = from.upcast(tcx);
+        p.expect_clause()
     }
 }
 
