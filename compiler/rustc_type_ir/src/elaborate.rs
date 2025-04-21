@@ -138,11 +138,18 @@ impl<I: Interner, O: Elaboratable<I>> Elaborator<I, O> {
         // `MetaSized` obligation and emit it. Candidate assembly and confirmation
         // are modified to check for the `Sized` subtrait when a `MetaSized` obligation
         // is present.
-        if self.elaborate_sized == ElaborateSized::No
-            && let Some(did) = clause.as_trait_clause().map(|c| c.def_id())
-            && self.cx.is_lang_item(did, TraitSolverLangItem::Sized)
-        {
-            return;
+        if self.elaborate_sized == ElaborateSized::No {
+            if let Some(did) = clause.as_trait_clause().map(|c| c.def_id())
+                && self.cx.is_lang_item(did, TraitSolverLangItem::Sized)
+            {
+                return;
+            }
+
+            if let Some(did) = clause.as_host_effect_clause().map(|c| c.def_id())
+                && self.cx.is_lang_item(did, TraitSolverLangItem::Sized)
+            {
+                return;
+            }
         }
 
         let bound_clause = clause.kind();

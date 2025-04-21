@@ -8,10 +8,10 @@ use rustc_middle::ty::elaborate::elaborate;
 use rustc_middle::ty::fast_reject::DeepRejectCtxt;
 use rustc_middle::{bug, ty};
 use thin_vec::{ThinVec, thin_vec};
-use tracing::instrument;
+use tracing::{debug, instrument};
 
-use super::SelectionContext;
 use super::normalize::normalize_with_depth_to;
+use super::{SelectionContext, util};
 
 pub type HostEffectObligation<'tcx> = Obligation<'tcx, ty::HostEffectPredicate<'tcx>>;
 
@@ -116,6 +116,7 @@ fn evaluate_host_effect_from_bounds<'tcx>(
     let infcx = selcx.infcx;
     let drcx = DeepRejectCtxt::relate_rigid_rigid(selcx.tcx());
     let mut candidate = None;
+    let mut num_candidates_found = 0;
 
     for clause in obligation.param_env.caller_bounds() {
         let bound_clause = clause.kind();
@@ -123,6 +124,10 @@ fn evaluate_host_effect_from_bounds<'tcx>(
             continue;
         };
         let data = bound_clause.rebind(data);
+        let bound_obligation = obligation.with(infcx.tcx, ty::Binder::dummy(obligation.predicate));
+        let (found, data) =
+            util::lazily_elaborate_sizedness_candidate(infcx, &bound_obligation, data);
+
         if data.skip_binder().trait_ref.def_id != obligation.predicate.trait_ref.def_id {
             continue;
         }
@@ -137,9 +142,16 @@ fn evaluate_host_effect_from_bounds<'tcx>(
             infcx.probe(|_| match_candidate(selcx, obligation, data, false, |_, _| {}).is_ok());
 
         if is_match {
-            if candidate.is_some() {
+            // `num_candidates_found` is incremented when a candidate is found, except when it is
+            // a candidate from `unelaborated_sizedness_candidate`, this avoids considering a
+            // `MetaSized` candidate ambiguous with a `Sized` candidate that can also be used.
+            if candidate.is_some() && num_candidates_found > 1 {
+                debug!(?candidate, ?num_candidates_found, ?data);
                 return Err(EvaluationFailure::Ambiguous);
             } else {
+                if !found {
+                    num_candidates_found += 1;
+                }
                 candidate = Some(data);
             }
         }

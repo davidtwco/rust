@@ -215,7 +215,7 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
                     }
 
                     selcx.infcx.probe(|_| {
-                        let bound = util::lazily_elaborate_sizedness_candidate(
+                        let (_, bound) = util::lazily_elaborate_sizedness_candidate(
                             selcx.infcx,
                             obligation,
                             bound,
@@ -272,7 +272,7 @@ impl<'cx, 'tcx> SelectionContext<'cx, 'tcx> {
         let obligation_args = stack.obligation.predicate.skip_binder().trait_ref.args;
         // Keep only those bounds which may apply, and propagate overflow if it occurs.
         for bound in bounds {
-            let bound =
+            let (_, bound) =
                 util::lazily_elaborate_sizedness_candidate(self.infcx, stack.obligation, bound);
 
             // Micro-optimization: filter out predicates relating to different traits.

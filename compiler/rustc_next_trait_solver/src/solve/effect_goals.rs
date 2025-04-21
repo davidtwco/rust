@@ -6,7 +6,7 @@ use rustc_type_ir::inherent::*;
 use rustc_type_ir::lang_items::TraitSolverLangItem;
 use rustc_type_ir::solve::SizedTraitKind;
 use rustc_type_ir::solve::inspect::ProbeKind;
-use rustc_type_ir::{self as ty, Interner, elaborate};
+use rustc_type_ir::{self as ty, HostEffectPredicate, Interner, TraitRef, Upcast, elaborate};
 use tracing::instrument;
 
 use super::assembly::{Candidate, structural_traits};
@@ -53,6 +53,25 @@ where
                     return Ok(());
                 }
             }
+
+            // PERF(sized-hierarchy): Sizedness supertraits aren't elaborated to improve perf, so
+            // check for a `Sized` subtrait when looking for `MetaSized`. `PointeeSized` bounds
+            // are syntactic sugar for a lack of bounds so don't need this.
+            if ecx.cx().is_lang_item(goal.predicate.def_id(), TraitSolverLangItem::MetaSized)
+                && ecx.cx().is_lang_item(host_clause.def_id(), TraitSolverLangItem::Sized)
+            {
+                let meta_sized_clause = host_clause
+                    .map_bound(|c| HostEffectPredicate {
+                        trait_ref: TraitRef::new_from_args(
+                            ecx.cx(),
+                            goal.predicate.def_id(),
+                            c.trait_ref.args,
+                        ),
+                        constness: c.constness,
+                    })
+                    .upcast(ecx.cx());
+                return Self::fast_reject_assumption(ecx, goal, meta_sized_clause);
+            }
         }
 
         Err(NoSolution)
@@ -65,6 +84,25 @@ where
         then: impl FnOnce(&mut EvalCtxt<'_, D>) -> QueryResult<I>,
     ) -> QueryResult<I> {
         let host_clause = assumption.as_host_effect_clause().unwrap();
+
+        // PERF(sized-hierarchy): Sizedness supertraits aren't elaborated to improve perf, so
+        // check for a `Sized` subtrait when looking for `MetaSized`. `PointeeSized` bounds
+        // are syntactic sugar for a lack of bounds so don't need this.
+        if ecx.cx().is_lang_item(goal.predicate.def_id(), TraitSolverLangItem::MetaSized)
+            && ecx.cx().is_lang_item(host_clause.def_id(), TraitSolverLangItem::Sized)
+        {
+            let meta_sized_clause = host_clause
+                .map_bound(|c| HostEffectPredicate {
+                    trait_ref: TraitRef::new_from_args(
+                        ecx.cx(),
+                        goal.predicate.def_id(),
+                        c.trait_ref.args,
+                    ),
+                    constness: c.constness,
+                })
+                .upcast(ecx.cx());
+            return Self::match_assumption(ecx, goal, meta_sized_clause, then);
+        }
 
         let assumption_trait_pred = ecx.instantiate_binder_with_infer(host_clause);
         ecx.eq(goal.param_env, goal.predicate.trait_ref, assumption_trait_pred.trait_ref)?;
