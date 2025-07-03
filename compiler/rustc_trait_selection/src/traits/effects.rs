@@ -326,7 +326,7 @@ fn evaluate_host_effect_for_sizedness_goal<'tcx>(
     let infcx = selcx.infcx;
     let self_ty = infcx.shallow_resolve(obligation.predicate.self_ty());
 
-    match self_ty.kind() {
+    let mut constraint_ty = match self_ty.kind() {
         // impl const {Meta,}Sized for u*, i*, bool, f*, FnDef, FnPtr, *(const/mut) T, char
         // impl const {Meta,}Sized for &mut? T, [T; N], dyn* Trait, !, Coroutine, CoroutineWitness
         // impl const {Meta,}Sized for Closure, CoroutineClosure
@@ -350,23 +350,19 @@ fn evaluate_host_effect_for_sizedness_goal<'tcx>(
         | ty::Slice(_)
         | ty::Dynamic(..)
         | ty::Foreign(..)
-        | ty::Error(_) => Ok(thin_vec![]),
+        | ty::Error(_) => return Ok(thin_vec![]),
 
         // impl const {Meta,}Sized for ()
         // impl const {Meta,}Sized for (T1, T2, .., Tn) where Tn: const {Meta,}Sized
         ty::Tuple(tys) => {
             if let Some(ty) = tys.last() {
-                Ok(thin_vec![
-                    obligation.with(infcx.tcx, obligation.predicate.with_self_ty(infcx.tcx, *ty))
-                ])
+                *ty
             } else {
-                Ok(thin_vec![])
+                return Ok(thin_vec![]);
             }
         }
 
-        ty::Pat(ty, _) => Ok(thin_vec![
-            obligation.with(infcx.tcx, obligation.predicate.with_self_ty(infcx.tcx, *ty))
-        ]),
+        ty::Pat(ty, _) => *ty,
 
         // impl const {Meta,}Sized for Adt where last_field(Adt): const {Meta,}Sized
         //
@@ -376,31 +372,54 @@ fn evaluate_host_effect_for_sizedness_goal<'tcx>(
         // regular non-const sizedness. Checks for the other fields happen elsewhere.
         ty::Adt(def, args) => {
             if let Some(crit) = def.sizedness_constraint(infcx.tcx, sizedness) {
-                Ok(thin_vec![obligation.with(
-                    infcx.tcx,
-                    obligation.predicate.with_self_ty(infcx.tcx, crit.instantiate(infcx.tcx, args))
-                )])
+                crit.instantiate(infcx.tcx, args)
             } else {
-                Ok(thin_vec![])
+                return Ok(thin_vec![]);
             }
         }
 
         // FIXME(unsafe_binders): This binder needs to be squashed
-        ty::UnsafeBinder(binder_ty) => Ok(thin_vec![obligation.with(
-            infcx.tcx,
-            binder_ty.map_bound(|ty| obligation.predicate.with_self_ty(infcx.tcx, ty))
-        )]),
+        // FIXME(sized-hierarchy): This type isn't normalised
+        ty::UnsafeBinder(binder_ty) => {
+            return Ok(thin_vec![obligation.with(
+                infcx.tcx,
+                binder_ty.map_bound(|ty| obligation.predicate.with_self_ty(infcx.tcx, ty))
+            )]);
+        }
 
         ty::Alias(..)
         | ty::Param(_)
         | ty::Placeholder(..)
         | ty::Bound(..)
-        | ty::Infer(ty::TyVar(_)) => Err(EvaluationFailure::NoSolution),
+        | ty::Infer(ty::TyVar(_)) => return Err(EvaluationFailure::NoSolution),
 
         ty::Infer(ty::FreshTy(_) | ty::FreshIntTy(_) | ty::FreshFloatTy(_)) => {
             bug!("asked to assemble builtin bounds of unexpected type: {:?}", self_ty)
         }
-    }
+    };
+
+    let recursion_depth = obligation.recursion_depth + 1;
+    let mut obligations = ThinVec::new();
+    constraint_ty = normalize_with_depth_to(
+        selcx,
+        obligation.param_env,
+        obligation.cause.clone(),
+        recursion_depth,
+        constraint_ty,
+        &mut obligations,
+    );
+
+    obligations.push(
+        obligation.with(infcx.tcx, obligation.predicate.with_self_ty(infcx.tcx, constraint_ty)),
+    );
+    let obligations = obligations
+        .drain(..)
+        .map(|mut obl| {
+            obl.recursion_depth = recursion_depth;
+            obl
+        })
+        .collect::<ThinVec<_>>();
+    Ok(obligations)
 }
 
 // NOTE: Keep this in sync with `const_conditions_for_destruct` in the new solver.
