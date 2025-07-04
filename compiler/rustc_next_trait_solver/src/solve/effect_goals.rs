@@ -415,6 +415,18 @@ where
                 goal.with(ecx.cx(), goal.predicate.trait_ref);
             ecx.compute_trait_goal(trait_goal)
         })?;
-        self.assemble_and_merge_candidates(proven_via, goal, |_ecx| Err(NoSolution))
+
+        // Similarly to `merge_trait_candidates` in `compute_host_effect_goal`, prefer alias
+        // candidates over param candidates for sizedness traits, auto traits or default traits.
+        let did = goal.predicate.def_id();
+        let is_sizedness_or_auto_or_default_goal = self.cx().is_sizedness_trait(did)
+            || self.cx().trait_is_auto(did)
+            || self.cx().is_default_trait(did);
+        self.assemble_and_merge_candidates(
+            proven_via,
+            goal,
+            |_ecx| Err(NoSolution),
+            is_sizedness_or_auto_or_default_goal,
+        )
     }
 }

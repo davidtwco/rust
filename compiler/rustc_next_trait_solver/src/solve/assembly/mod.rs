@@ -921,6 +921,7 @@ where
         proven_via: Option<TraitGoalProvenVia>,
         goal: Goal<I, G>,
         inject_normalize_to_rigid_candidate: impl FnOnce(&mut EvalCtxt<'_, D>) -> QueryResult<I>,
+        prefer_alias_over_param_candidates: bool,
     ) -> QueryResult<I> {
         let Some(proven_via) = proven_via else {
             // We don't care about overflow. If proving the trait goal overflowed, then
@@ -940,20 +941,31 @@ where
                 let candidates_from_env_and_bounds: Vec<_> = self
                     .assemble_and_evaluate_candidates(goal, AssembleCandidatesFrom::EnvAndBounds);
 
-                // We still need to prefer where-bounds over alias-bounds however.
+                // We still need to prefer where-bounds over alias-bounds however (unless
+                // `prefer_alias_over_param_candidates`).
                 // See `tests/ui/winnowing/norm-where-bound-gt-alias-bound.rs`.
-                let mut considered_candidates: Vec<_> = if candidates_from_env_and_bounds
+                let has_param_candidates = candidates_from_env_and_bounds
                     .iter()
-                    .any(|c| matches!(c.source, CandidateSource::ParamEnv(_)))
-                {
-                    candidates_from_env_and_bounds
-                        .into_iter()
-                        .filter(|c| matches!(c.source, CandidateSource::ParamEnv(_)))
-                        .map(|c| c.result)
-                        .collect()
-                } else {
-                    candidates_from_env_and_bounds.into_iter().map(|c| c.result).collect()
-                };
+                    .any(|c| matches!(c.source, CandidateSource::ParamEnv(_)));
+                let has_alias_candidates = candidates_from_env_and_bounds
+                    .iter()
+                    .any(|c| matches!(c.source, CandidateSource::AliasBound));
+                let mut considered_candidates: Vec<_> =
+                    if prefer_alias_over_param_candidates && has_alias_candidates {
+                        candidates_from_env_and_bounds
+                            .into_iter()
+                            .filter(|c| matches!(c.source, CandidateSource::AliasBound))
+                            .map(|c| c.result)
+                            .collect()
+                    } else if has_param_candidates {
+                        candidates_from_env_and_bounds
+                            .into_iter()
+                            .filter(|c| matches!(c.source, CandidateSource::ParamEnv(_)))
+                            .map(|c| c.result)
+                            .collect()
+                    } else {
+                        candidates_from_env_and_bounds.into_iter().map(|c| c.result).collect()
+                    };
 
                 // If the trait goal has been proven by using the environment, we want to treat
                 // aliases as rigid if there are no applicable projection bounds in the environment.

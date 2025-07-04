@@ -39,15 +39,20 @@ where
                         let trait_goal: Goal<I, ty::TraitPredicate<I>> = goal.with(cx, trait_ref);
                         ecx.compute_trait_goal(trait_goal)
                     })?;
-                self.assemble_and_merge_candidates(proven_via, goal, |ecx| {
-                    ecx.probe(|&result| ProbeKind::RigidAlias { result }).enter(|this| {
-                        this.structurally_instantiate_normalizes_to_term(
-                            goal,
-                            goal.predicate.alias,
-                        );
-                        this.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
-                    })
-                })
+                self.assemble_and_merge_candidates(
+                    proven_via,
+                    goal,
+                    |ecx| {
+                        ecx.probe(|&result| ProbeKind::RigidAlias { result }).enter(|this| {
+                            this.structurally_instantiate_normalizes_to_term(
+                                goal,
+                                goal.predicate.alias,
+                            );
+                            this.evaluate_added_goals_and_make_canonical_response(Certainty::Yes)
+                        })
+                    },
+                    false,
+                )
             }
             ty::AliasTermKind::InherentTy | ty::AliasTermKind::InherentConst => {
                 self.normalize_inherent_associated_term(goal)

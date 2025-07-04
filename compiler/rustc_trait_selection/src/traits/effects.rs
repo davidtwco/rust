@@ -41,22 +41,49 @@ pub fn evaluate_host_effect_obligation<'tcx>(
         return Err(EvaluationFailure::Ambiguous);
     }
 
-    match evaluate_host_effect_from_bounds(selcx, obligation) {
-        Ok(result) => return Ok(result),
-        Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
-        Err(EvaluationFailure::NoSolution) => {}
-    }
+    let did = obligation.predicate.def_id();
+    let is_sizedness_or_auto_or_default_predicate = selcx.tcx().is_sizedness_trait(did)
+        || selcx.tcx().trait_is_auto(did)
+        || selcx.tcx().is_default_trait(did);
 
-    match evaluate_host_effect_from_conditionally_const_item_bounds(selcx, obligation) {
-        Ok(result) => return Ok(result),
-        Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
-        Err(EvaluationFailure::NoSolution) => {}
-    }
+    // Similar to when winnowing candidates for trait predicates: sizedness trait, auto trait or
+    // default trait predicates prefer item bounds over where bounds.
+    if is_sizedness_or_auto_or_default_predicate {
+        match evaluate_host_effect_from_conditionally_const_item_bounds(selcx, obligation) {
+            Ok(result) => return Ok(result),
+            Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
+            Err(EvaluationFailure::NoSolution) => {}
+        }
 
-    match evaluate_host_effect_from_item_bounds(selcx, obligation) {
-        Ok(result) => return Ok(result),
-        Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
-        Err(EvaluationFailure::NoSolution) => {}
+        match evaluate_host_effect_from_item_bounds(selcx, obligation) {
+            Ok(result) => return Ok(result),
+            Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
+            Err(EvaluationFailure::NoSolution) => {}
+        }
+
+        match evaluate_host_effect_from_bounds(selcx, obligation) {
+            Ok(result) => return Ok(result),
+            Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
+            Err(EvaluationFailure::NoSolution) => {}
+        }
+    } else {
+        match evaluate_host_effect_from_bounds(selcx, obligation) {
+            Ok(result) => return Ok(result),
+            Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
+            Err(EvaluationFailure::NoSolution) => {}
+        }
+
+        match evaluate_host_effect_from_conditionally_const_item_bounds(selcx, obligation) {
+            Ok(result) => return Ok(result),
+            Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
+            Err(EvaluationFailure::NoSolution) => {}
+        }
+
+        match evaluate_host_effect_from_item_bounds(selcx, obligation) {
+            Ok(result) => return Ok(result),
+            Err(EvaluationFailure::Ambiguous) => return Err(EvaluationFailure::Ambiguous),
+            Err(EvaluationFailure::NoSolution) => {}
+        }
     }
 
     match evaluate_host_effect_from_builtin_impls(selcx, obligation) {
