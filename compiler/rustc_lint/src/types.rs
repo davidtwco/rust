@@ -1192,6 +1192,10 @@ impl<'a, 'tcx> ImproperCTypesVisitor<'a, 'tcx> {
                         };
                     }
                 }
+                // Scalable vectors are passed to C in their vector registers.
+                if def.repr().scalable() {
+                    return FfiSafe;
+                }
                 if def.is_phantom_data() {
                     return FfiPhantom(ty);
                 }
