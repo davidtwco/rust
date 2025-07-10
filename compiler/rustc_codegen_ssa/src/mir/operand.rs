@@ -393,7 +393,9 @@ impl<'a, 'tcx, V: CodegenObject> OperandRef<'tcx, V> {
                         imm
                     }
                 }
-                BackendRepr::ScalarPair(_, _) | BackendRepr::Memory { .. } => bug!(),
+                BackendRepr::ScalarPair(_, _)
+                | BackendRepr::Memory { .. }
+                | BackendRepr::ScalableVector { .. } => bug!(),
             })
         };
 
@@ -575,7 +577,9 @@ impl<'a, 'tcx, V: CodegenObject> OperandRef<'tcx, V> {
             BackendRepr::Memory { .. } if layout.is_zst() => OperandValue::ZeroSized,
             BackendRepr::Scalar(s) => OperandValue::Immediate(Err(s)),
             BackendRepr::ScalarPair(a, b) => OperandValue::Pair(Err(a), Err(b)),
-            BackendRepr::Memory { .. } | BackendRepr::SimdVector { .. } => return None,
+            BackendRepr::Memory { .. }
+            | BackendRepr::SimdVector { .. }
+            | BackendRepr::ScalableVector { .. } => return None,
         };
         Some(OperandRef { val, layout })
     }
